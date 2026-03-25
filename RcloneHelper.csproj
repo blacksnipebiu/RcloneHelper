@@ -9,6 +9,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- 防止裁剪掉 Views 中的 Page 类型 -->
+    <TrimmerRootAssembly Include="RcloneHelper" />
+  </ItemGroup>
+
+  <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
 
