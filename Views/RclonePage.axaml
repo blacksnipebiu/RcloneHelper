@@ -1,0 +1,233 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="RcloneHelper.Views.RclonePage">
+    <UserControl.Styles>
+        <Style Selector="Button">
+            <Setter Property="Margin" Value="5" />
+            <Setter Property="Padding" Value="15,8" />
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="Margin" Value="5" />
+        </Style>
+        <Style Selector="ComboBox">
+            <Setter Property="Margin" Value="5" />
+        </Style>
+        <Style Selector="ListBox">
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="#ccc" />
+        </Style>
+        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#e8f5e9" />
+        </Style>
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="#c8e6c9" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,*,Auto,Auto">
+        <!-- 标题栏 -->
+        <Border Grid.Row="0" Background="#2d2d2d" Padding="15">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="Rclone 管理" FontSize="20" FontWeight="Bold" Foreground="White" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                    <CheckBox Content="开机启动" Foreground="White" IsChecked="{Binding AutoStartEnabled}" Command="{Binding ToggleAutoStartCommand}" />
+                    <CheckBox Content="启动时自动挂载" Foreground="White" IsChecked="{Binding AutoMountOnStart}" Command="{Binding SaveSettingsCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 主内容区 -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,350" Margin="10">
+            <!-- 左侧：两个列表 -->
+            <Grid Grid.Column="0" RowDefinitions="*,Auto,*" Margin="5">
+                <!-- 已挂载列表 -->
+                <Border Grid.Row="0" BorderBrush="#4CAF50" BorderThickness="2" Margin="0,0,0,5">
+                    <Grid RowDefinitions="Auto,Auto,*">
+                        <Border Grid.Row="0" Background="#4CAF50" Padding="10,5">
+                            <TextBlock Text="已挂载" FontWeight="Bold" Foreground="White" FontSize="14" />
+                        </Border>
+                        <!-- 表头 -->
+                        <Border Grid.Row="1" Background="#f5f5f5" Padding="5">
+                            <Grid ColumnDefinitions="150,80,80,*,*">
+                                <TextBlock Grid.Column="0" Text="名称" FontWeight="Bold" />
+                                <TextBlock Grid.Column="1" Text="类型" FontWeight="Bold" />
+                                <TextBlock Grid.Column="2" Text="盘符" FontWeight="Bold" />
+                                <TextBlock Grid.Column="3" Text="远程路径" FontWeight="Bold" />
+                                <TextBlock Grid.Column="4" Text="状态" FontWeight="Bold" />
+                            </Grid>
+                        </Border>
+                        <ListBox Grid.Row="2" ItemsSource="{Binding MountedMounts}" SelectedItem="{Binding SelectedMounted}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="150,80,80,*,*">
+                                        <TextBlock Grid.Column="0" Text="{Binding Name}" Padding="0,0,5,0" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Type}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding LocalDrive}" />
+                                        <TextBlock Grid.Column="3" Text="{Binding RemotePath}" />
+                                        <TextBlock Grid.Column="4" Text="{Binding Status}" Foreground="#4CAF50" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </Border>
+
+                <!-- 分隔按钮 -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10" Margin="5">
+                    <Button Content="挂载选中" Command="{Binding ToggleUnmountedCommand}" IsEnabled="{Binding SelectedUnmounted, Converter={x:Static ObjectConverters.IsNotNull}}" Background="#4CAF50" Foreground="White" />
+                    <Button Content="卸载选中" Command="{Binding ToggleMountedCommand}" IsEnabled="{Binding SelectedMounted, Converter={x:Static ObjectConverters.IsNotNull}}" Background="#f44336" Foreground="White" />
+                    <Button Content="挂载全部" Command="{Binding MountAllAsyncCommand}" Background="#2196F3" Foreground="White" />
+                    <Button Content="卸载全部" Command="{Binding UnmountAllAsyncCommand}" Background="#FF9800" Foreground="White" />
+                </StackPanel>
+
+                <!-- 未挂载列表 -->
+                <Border Grid.Row="2" BorderBrush="#9E9E9E" BorderThickness="2" Margin="0,5,0,0">
+                    <Grid RowDefinitions="Auto,Auto,*">
+                        <Border Grid.Row="0" Background="#757575" Padding="10,5">
+                            <TextBlock Text="未挂载" FontWeight="Bold" Foreground="White" FontSize="14" />
+                        </Border>
+                        <!-- 表头 -->
+                        <Border Grid.Row="1" Background="#f5f5f5" Padding="5">
+                            <Grid ColumnDefinitions="150,80,80,*,*">
+                                <TextBlock Grid.Column="0" Text="名称" FontWeight="Bold" />
+                                <TextBlock Grid.Column="1" Text="类型" FontWeight="Bold" />
+                                <TextBlock Grid.Column="2" Text="盘符" FontWeight="Bold" />
+                                <TextBlock Grid.Column="3" Text="远程路径" FontWeight="Bold" />
+                                <TextBlock Grid.Column="4" Text="状态" FontWeight="Bold" />
+                            </Grid>
+                        </Border>
+                        <ListBox Grid.Row="2" ItemsSource="{Binding UnmountedMounts}" SelectedItem="{Binding SelectedUnmounted}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="150,80,80,*,*">
+                                        <TextBlock Grid.Column="0" Text="{Binding Name}" Padding="0,0,5,0" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Type}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding LocalDrive}" />
+                                        <TextBlock Grid.Column="3" Text="{Binding RemotePath}" />
+                                        <TextBlock Grid.Column="4" Text="{Binding Status}" Foreground="#757575" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- 右侧：操作面板 -->
+            <StackPanel Grid.Column="1" Margin="10" Spacing="10">
+                <TextBlock Text="操作" FontWeight="Bold" FontSize="16" Margin="0,0,0,10" />
+
+                <Button Content="添加挂载" Command="{Binding AddMountCommand}" HorizontalAlignment="Stretch" />
+                <Button Content="编辑已挂载" Command="{Binding EditMountedCommand}" IsEnabled="{Binding SelectedMounted, Converter={x:Static ObjectConverters.IsNotNull}}" HorizontalAlignment="Stretch" />
+                <Button Content="编辑未挂载" Command="{Binding EditUnmountedCommand}" IsEnabled="{Binding SelectedUnmounted, Converter={x:Static ObjectConverters.IsNotNull}}" HorizontalAlignment="Stretch" />
+                <Button Content="删除已挂载" Command="{Binding DeleteMountedCommand}" IsEnabled="{Binding SelectedMounted, Converter={x:Static ObjectConverters.IsNotNull}}" HorizontalAlignment="Stretch" Background="#f44336" Foreground="White" />
+                <Button Content="删除未挂载" Command="{Binding DeleteUnmountedCommand}" IsEnabled="{Binding SelectedUnmounted, Converter={x:Static ObjectConverters.IsNotNull}}" HorizontalAlignment="Stretch" Background="#f44336" Foreground="White" />
+
+                <Border Background="#f0f0f0" Padding="10" Margin="0,20,0,0">
+                    <StackPanel>
+                        <TextBlock Text="选中挂载详情" FontWeight="Bold" Margin="0,0,0,10" />
+                        <StackPanel IsVisible="{Binding SelectedMounted, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <TextBlock Text="【已挂载】" Foreground="#4CAF50" FontWeight="Bold" />
+                            <TextBlock Text="{Binding SelectedMounted.Name, StringFormat='名称: {0}'}" />
+                            <TextBlock Text="{Binding SelectedMounted.Url, StringFormat='URL: {0}'}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding SelectedMounted.User, StringFormat='用户: {0}'}" />
+                            <TextBlock Text="{Binding SelectedMounted.LocalDrive, StringFormat='本地盘符: {0}'}" />
+                            <TextBlock Text="{Binding SelectedMounted.Status, StringFormat='状态: {0}'}" />
+                        </StackPanel>
+                        <StackPanel IsVisible="{Binding SelectedUnmounted, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <TextBlock Text="【未挂载】" Foreground="#757575" FontWeight="Bold" />
+                            <TextBlock Text="{Binding SelectedUnmounted.Name, StringFormat='名称: {0}'}" />
+                            <TextBlock Text="{Binding SelectedUnmounted.Url, StringFormat='URL: {0}'}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding SelectedUnmounted.User, StringFormat='用户: {0}'}" />
+                            <TextBlock Text="{Binding SelectedUnmounted.LocalDrive, StringFormat='本地盘符: {0}'}" />
+                            <TextBlock Text="{Binding SelectedUnmounted.Status, StringFormat='状态: {0}'}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
+
+        <!-- 状态栏 -->
+        <Border Grid.Row="2" Background="#f0f0f0" Padding="10">
+            <TextBlock Text="{Binding StatusMessage}" />
+        </Border>
+
+        <!-- 编辑面板 (弹出覆盖层) -->
+        <Border Grid.Row="0" Grid.RowSpan="3" Background="#80000000" IsVisible="{Binding IsEditing}">
+            <Border Background="White" Width="500" Padding="20" VerticalAlignment="Center" HorizontalAlignment="Center" CornerRadius="5">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <TextBlock Grid.Row="0" Text="编辑挂载" FontSize="18" FontWeight="Bold" Margin="0,0,0,20" />
+
+                    <Grid Grid.Row="1" ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="名称:" VerticalAlignment="Center" Margin="5" />
+                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding EditingMount.Name}" Watermark="输入名称" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="类型:" VerticalAlignment="Center" Margin="5" />
+                        <ComboBox Grid.Row="1" Grid.Column="1" SelectedItem="{Binding EditingMount.Type}" HorizontalAlignment="Stretch">
+                            <x:String>webdav</x:String>
+                            <x:String>ftp</x:String>
+                            <x:String>sftp</x:String>
+                            <x:String>s3</x:String>
+                        </ComboBox>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="URL:" VerticalAlignment="Center" Margin="5" />
+                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding EditingMount.Url}" Watermark="https://example.com/dav" />
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="用户名:" VerticalAlignment="Center" Margin="5" />
+                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding EditingMount.User}" Watermark="可选" />
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="密码:" VerticalAlignment="Center" Margin="5" />
+                        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding EditingMount.Password}" PasswordChar="*" Watermark="可选" />
+
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="WebDAV 服务商:" VerticalAlignment="Center" Margin="5" />
+                        <ComboBox Grid.Row="5" Grid.Column="1" SelectedItem="{Binding EditingMount.Vendor}" HorizontalAlignment="Stretch">
+                            <x:String>other</x:String>
+                            <x:String>owncloud</x:String>
+                            <x:String>nextcloud</x:String>
+                            <x:String>sharepoint</x:String>
+                            <x:String>fastmail</x:String>
+                        </ComboBox>
+
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="远程路径:" VerticalAlignment="Center" Margin="5" />
+                        <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding EditingMount.RemotePath}" Watermark="例如: /path/to/folder (可选)" />
+
+                        <TextBlock Grid.Row="7" Grid.Column="0" Text="本地盘符:" VerticalAlignment="Center" Margin="5" />
+                        <ComboBox Grid.Row="7" Grid.Column="1" SelectedItem="{Binding EditingMount.LocalDrive}" HorizontalAlignment="Stretch">
+                            <x:String>Z:</x:String>
+                            <x:String>Y:</x:String>
+                            <x:String>X:</x:String>
+                            <x:String>W:</x:String>
+                            <x:String>V:</x:String>
+                            <x:String>U:</x:String>
+                            <x:String>T:</x:String>
+                            <x:String>S:</x:String>
+                            <x:String>R:</x:String>
+                            <x:String>Q:</x:String>
+                            <x:String>P:</x:String>
+                            <x:String>O:</x:String>
+                            <x:String>N:</x:String>
+                            <x:String>M:</x:String>
+                            <x:String>L:</x:String>
+                            <x:String>K:</x:String>
+                            <x:String>J:</x:String>
+                            <x:String>I:</x:String>
+                            <x:String>H:</x:String>
+                            <x:String>G:</x:String>
+                            <x:String>F:</x:String>
+                            <x:String>E:</x:String>
+                            <x:String>D:</x:String>
+                        </ComboBox>
+                    </Grid>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                        <Button Content="保存" Command="{Binding SaveMountCommand}" />
+                        <Button Content="取消" Command="{Binding CancelEditCommand}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Border>
+    </Grid>
+</UserControl>

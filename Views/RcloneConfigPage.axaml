@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
+             x:Class="RcloneHelper.Views.RcloneConfigPage">
+    <Grid RowDefinitions="Auto,*,Auto">
+        <!-- 页面标题 -->
+        <Border Grid.Row="0" Background="#2d2d2d" Padding="15">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <TextBlock Grid.Column="0" Text="Rclone 配置" FontSize="20" FontWeight="Bold" Foreground="White" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="打开配置文件夹" Command="{Binding OpenConfigFolderCommand}" Margin="0,0,10,0" Padding="15,5" />
+                <Button Grid.Column="2" Content="刷新" Command="{Binding RefreshConfigCommand}" Padding="15,5" />
+            </Grid>
+        </Border>
+
+        <!-- 主内容 -->
+        <Grid Grid.Row="1" Margin="10">
+            <Grid RowDefinitions="Auto,*">
+                <!-- 标题栏 -->
+                <Border Grid.Row="0" Background="#2196F3" Padding="10">
+                    <Grid ColumnDefinitions="*,100,100,80">
+                        <TextBlock Grid.Column="0" Text="Remote 名称" FontWeight="Bold" Foreground="White" />
+                        <TextBlock Grid.Column="1" Text="类型" FontWeight="Bold" Foreground="White" />
+                        <TextBlock Grid.Column="2" Text="本地盘符" FontWeight="Bold" Foreground="White" />
+                        <TextBlock Grid.Column="3" Text="状态" FontWeight="Bold" Foreground="White" />
+                    </Grid>
+                </Border>
+
+                <!-- Remote 列表 -->
+                <ListBox Grid.Row="1" ItemsSource="{Binding Remotes}" SelectedItem="{Binding SelectedRemote}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ColumnDefinitions="*,100,100,80" Margin="5,8">
+                                <!-- 名称 -->
+                                <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="Bold" VerticalAlignment="Center" />
+
+                                <!-- 类型 -->
+                                <TextBlock Grid.Column="1" Text="{Binding Type}" VerticalAlignment="Center" Foreground="#666" />
+
+                                <!-- 盘符 -->
+                                <TextBlock Grid.Column="2" Text="{Binding LocalDrive}" VerticalAlignment="Center" FontWeight="Bold" Foreground="#4CAF50" />
+
+                                <!-- 状态 -->
+                                <TextBlock Grid.Column="3" Text="已挂载" VerticalAlignment="Center" Foreground="#4CAF50" FontWeight="Bold" 
+                                           IsVisible="{Binding IsMounted}" />
+                                <TextBlock Grid.Column="3" Text="未挂载" VerticalAlignment="Center" Foreground="#999" 
+                                           IsVisible="{Binding !IsMounted}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Grid>
+
+        <!-- 操作按钮 -->
+        <Border Grid.Row="2" Background="#f5f5f5" Padding="15">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button Content="卸载选中" Command="{Binding UnmountSelectedCommand}" 
+                        IsEnabled="{Binding SelectedRemote.IsMounted}" Background="#f44336" Foreground="White" Padding="15,5" />
+                <Button Content="删除选中" Command="{Binding DeleteRemoteCommand}" 
+                        IsEnabled="{Binding SelectedRemote, Converter={x:Static ObjectConverters.IsNotNull}}" Background="#FF9800" Foreground="White" Padding="15,5" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
