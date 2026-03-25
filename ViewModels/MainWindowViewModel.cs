@@ -58,12 +58,17 @@ public partial class MainWindowViewModel : ObservableObject
     private bool _isRcloneSelected = false;
 
     [ObservableProperty]
+    private bool _isSettingsSelected = false;
+
+    [ObservableProperty]
     private object? _currentPage;
 
     // 页面实例
     private readonly HomePage _homePage;
 
     private readonly RcloneConfigPage _rcloneConfigPage;
+
+    private readonly SettingsPage _settingsPage;
 
     public MainWindowViewModel()
     {
@@ -77,6 +82,7 @@ public partial class MainWindowViewModel : ObservableObject
         // 创建页面实例 - 主页是挂载管理，Rclone管理页是Rclone配置
         _homePage = new HomePage { DataContext = this };
         _rcloneConfigPage = new RcloneConfigPage { DataContext = new RcloneConfigPageViewModel() };
+        _settingsPage = new SettingsPage { DataContext = this };
 
         // 默认显示主页（挂载管理）
         CurrentPage = _homePage;
@@ -101,6 +107,7 @@ public partial class MainWindowViewModel : ObservableObject
     {
         IsHomeSelected = true;
         IsRcloneSelected = false;
+        IsSettingsSelected = false;
         CurrentPage = _homePage;
     }
 
@@ -109,7 +116,17 @@ public partial class MainWindowViewModel : ObservableObject
     {
         IsHomeSelected = false;
         IsRcloneSelected = true;
+        IsSettingsSelected = false;
         CurrentPage = _rcloneConfigPage;
+    }
+
+    [RelayCommand]
+    private void NavigateSettings()
+    {
+        IsHomeSelected = false;
+        IsRcloneSelected = false;
+        IsSettingsSelected = true;
+        CurrentPage = _settingsPage;
     }
 
     private string FindRclonePath()
@@ -374,7 +391,7 @@ private void CancelEdit()
         await UnmountAsync(SelectedMount);
     }
 
-    [RelayCommand]
+[RelayCommand]
     private async Task MountAllAsync()
     {
         var toMount = UnmountedMounts.ToList();
@@ -392,6 +409,35 @@ private void CancelEdit()
         {
             await UnmountAsync(mount);
         }
+    }
+
+    [RelayCommand]
+    private async Task MountItem(MountInfo? mount)
+    {
+        if (mount == null || mount.IsMounted) return;
+        await MountAsync(mount);
+    }
+
+    [RelayCommand]
+    private async Task UnmountItem(MountInfo? mount)
+    {
+        if (mount == null || !mount.IsMounted) return;
+        await UnmountAsync(mount);
+    }
+
+    [RelayCommand]
+    private void EditItem(MountInfo? mount)
+    {
+        if (mount == null) return;
+        SelectedMount = mount;
+        EditMountInternal(mount);
+    }
+
+    [RelayCommand]
+    private void DeleteItem(MountInfo? mount)
+    {
+        if (mount == null) return;
+        DeleteMountInternal(mount);
     }
 
     private async Task MountAsync(MountInfo mount)

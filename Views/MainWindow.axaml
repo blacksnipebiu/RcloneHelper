@@ -66,6 +66,14 @@
                             <TextBlock Text="Rclone管理" Classes="navText" />
                         </StackPanel>
                     </Button>
+
+                    <!-- 配置 -->
+                    <Button Classes="navButton" Classes.selected="{Binding IsSettingsSelected}" Command="{Binding NavigateSettingsCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🔧" Classes="navIcon" />
+                            <TextBlock Text="配置" Classes="navText" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
                 <!-- 底部信息 -->

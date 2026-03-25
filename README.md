@@ -32,9 +32,11 @@ choco install rclone
 ```bash
 cd RcloneHelper
 dotnet restore
-dotnet build
-dotnet run
+dotnet build -c Release
+dotnet run --no-build -c Release
 ```
+
+> ⚠️ **注意**：开发时请使用 Release 配置。Debug 编译输出会被正在运行的 Debug 实例锁定，导致编译失败。如需同时运行多个实例，可使用 `--urls` 参数指定不同端口。
 
 ### 3. 发布独立应用
 
@@ -46,7 +48,7 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 
 ### 添加挂载
 
-1. 点击"添加挂载"按钮
+1. 点击标题栏的"添加挂载"按钮
 2. 填写以下信息：
    - **名称**: 挂载的标识名称
    - **类型**: 选择 webdav (或其他类型)
@@ -58,13 +60,13 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 
 ### 挂载/卸载
 
-- 选中列表中的挂载项，点击"挂载/卸载"按钮
-- 或使用"挂载全部"/"卸载全部"批量操作
+- 点击列表中的 ▶（挂载）或 ⏸（卸载）图标按钮
+- 列表上方有"挂载全部"/"卸载全部"批量操作按钮
 
 ### 开机启动设置
 
-- 勾选"开机启动"复选框，程序将添加到 Windows 启动项
-- 勾选"启动时自动挂载"，程序启动后会自动挂载所有配置
+- 进入"配置"页面，勾选"开机启动"，程序将添加到 Windows 启动项
+- 勾选"启动时自动挂载所有存储"，程序启动后会自动挂载所有已配置的存储
 
 ## 配置文件
 
