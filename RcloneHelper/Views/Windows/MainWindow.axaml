@@ -1,0 +1,215 @@
+<Window xmlns="https://github.com/avaloniaui"
+         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:vm="using:RcloneHelper.Core.Windows"
+          xmlns:vmPages="using:RcloneHelper.Core.Pages"
+         xmlns:views="using:RcloneHelper.Views.Windows"
+         xmlns:pages="using:RcloneHelper.Views.Pages"
+         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+         mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
+         x:Class="RcloneHelper.Views.Windows.MainWindow"
+         x:DataType="vm:MainWindowViewModel"
+         Title="Rclone Helper"
+         Width="1000" Height="700"
+         WindowStartupLocation="CenterScreen"
+         SystemDecorations="None"
+         ExtendClientAreaToDecorationsHint="True"
+         ExtendClientAreaChromeHints="NoChrome"
+         Background="{DynamicResource BackgroundBrush}">
+
+    <!-- ViewModel → View 映射 -->
+    <Window.DataTemplates>
+        <DataTemplate DataType="{x:Type vmPages:HomePageViewModel}">
+            <pages:HomePage />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vmPages:RcloneConfigPageViewModel}">
+            <pages:RcloneConfigPage />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vmPages:SettingsPageViewModel}">
+            <pages:SettingsPage />
+        </DataTemplate>
+    </Window.DataTemplates>
+
+    <Window.Styles>
+        <Style Selector="Button.navButton">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="15,12" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+        <Style Selector="Button.navButton:pointerover">
+            <Setter Property="Background" Value="{DynamicResource NavBarItemHoverBrush}" />
+        </Style>
+        <Style Selector="Button.navButton.selected">
+            <Setter Property="Background" Value="{DynamicResource NavBarItemSelectedBrush}" />
+        </Style>
+        <Style Selector="TextBlock.navIcon">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.navText">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- Title bar button styles -->
+        <Style Selector="Button.titleBarButton">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Foreground" Value="{DynamicResource TitleBarForegroundBrush}" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.titleBarButton:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SurfaceLowBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}" />
+        </Style>
+        <Style Selector="Button.titleBarButton.close:pointerover">
+            <Setter Property="Background" Value="{DynamicResource ErrorBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}" />
+        </Style>
+
+        <!-- Toast styles -->
+        <Style Selector="Border.toastItem">
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="15,10" />
+            <Setter Property="BoxShadow" Value="0 4 12 0 #40000000" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="MinWidth" Value="200" />
+            <Setter Property="MaxWidth" Value="400" />
+        </Style>
+        <Style Selector="TextBlock.toastMessage">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="FontWeight" Value="Medium" />
+        </Style>
+        <Style Selector="TextBlock.toastTime">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Opacity" Value="0.8" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+        </Style>
+    </Window.Styles>
+
+    <Grid ColumnDefinitions="200,*">
+        <!-- 左侧导航栏 - 占满整个高度 -->
+        <Border Grid.Column="0" Background="{DynamicResource NavBarBackgroundBrush}">
+            <Grid RowDefinitions="Auto,*,Auto">
+                <!-- Logo/标题区 -->
+                <Border Grid.Row="0" Background="{DynamicResource SurfaceHighBrush}" Padding="15">
+                    <StackPanel>
+                        <TextBlock Text="Rclone Helper" FontSize="18" FontWeight="Bold" 
+                                   Foreground="{DynamicResource ForegroundBrush}" />
+                        <TextBlock Text="网络存储挂载管理" FontSize="11" 
+                                   Foreground="{DynamicResource ForegroundMutedBrush}" Margin="0,3,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 导航菜单 -->
+                <StackPanel Grid.Row="1" Margin="0,10,0,0">
+                    <!-- 主页 -->
+                    <Button Classes="navButton" Classes.selected="{Binding IsHomeSelected}" Command="{Binding NavigateHomeCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🏠" Classes="navIcon" />
+                            <TextBlock Text="主页" Classes="navText" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Rclone管理 -->
+                    <Button Classes="navButton" Classes.selected="{Binding IsRcloneSelected}" Command="{Binding NavigateRcloneCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⚙️" Classes="navIcon" />
+                            <TextBlock Text="Rclone管理" Classes="navText" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- 配置 -->
+                    <Button Classes="navButton" Classes.selected="{Binding IsSettingsSelected}" Command="{Binding NavigateSettingsCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🔧" Classes="navIcon" />
+                            <TextBlock Text="配置" Classes="navText" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- 底部信息 -->
+                <Border Grid.Row="2" Padding="15" Background="{DynamicResource SurfaceHighBrush}">
+                    <TextBlock Text="v1.0.0" FontSize="11" Foreground="{DynamicResource ForegroundDisabledBrush}" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- 右侧区域 -->
+        <Grid Grid.Column="1" RowDefinitions="Auto,*">
+            <!-- 标题栏（仅窗口控制按钮） -->
+            <Border Grid.Row="0" Background="{DynamicResource TitleBarBackgroundBrush}" Height="32"
+                    PointerPressed="TitleBar_PointerPressed">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <!-- Theme Toggle -->
+                    <Button Classes="titleBarButton" Click="ThemeToggle_Click" ToolTip.Tip="切换主题">
+                        <Viewbox Width="14" Height="14">
+                            <Path x:Name="ThemeIcon" Fill="{DynamicResource TitleBarForegroundBrush}" Data="{DynamicResource IconSun}" />
+                        </Viewbox>
+                    </Button>
+                    <!-- Minimize -->
+                    <Button Classes="titleBarButton" Click="MinimizeButton_Click">
+                        <Viewbox Width="12" Height="12">
+                            <Path Fill="{DynamicResource TitleBarForegroundBrush}" Data="{DynamicResource IconMinimize}" />
+                        </Viewbox>
+                    </Button>
+                    <!-- Maximize/Restore -->
+                    <Button Classes="titleBarButton" Click="MaximizeButton_Click">
+                        <Viewbox x:Name="MaximizeIcon" Width="12" Height="12">
+                            <Path Fill="{DynamicResource TitleBarForegroundBrush}" Data="{DynamicResource IconMaximize}" />
+                        </Viewbox>
+                    </Button>
+                    <!-- Close -->
+                    <Button Classes="titleBarButton close" Click="CloseButton_Click">
+                        <Viewbox Width="10" Height="10">
+                            <Path Fill="{DynamicResource TitleBarForegroundBrush}" Data="{DynamicResource IconClose}" />
+                        </Viewbox>
+                    </Button>
+                </StackPanel>
+            </Border>
+
+            <!-- 内容区 -->
+            <Border Grid.Row="1" Background="{DynamicResource ContentBackgroundBrush}">
+                <Grid>
+                    <ContentControl Content="{Binding CurrentPage}" />
+                    
+                    <!-- Toast 容器 - 支持叠加显示 -->
+                    <ItemsControl x:Name="ToastList"
+                                  VerticalAlignment="Bottom"
+                                  HorizontalAlignment="Center"
+                                  Margin="0,0,0,20"
+                                  ZIndex="1000">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Classes="toastItem"
+                                        Background="{Binding BackgroundColor}"
+                                        IsVisible="{Binding IsVisible}"
+                                        Opacity="{Binding Opacity}"
+                                        ClipToBounds="False">
+                                    <Border.RenderTransform>
+                                        <TranslateTransform Y="{Binding OffsetY}" />
+                                    </Border.RenderTransform>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Message}" Classes="toastMessage" />
+                                        <TextBlock Text="{Binding Time}" Classes="toastTime" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

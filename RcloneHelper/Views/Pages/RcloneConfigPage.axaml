@@ -1,0 +1,156 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:RcloneHelper.Core.Pages"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
+             x:Class="RcloneHelper.Views.Pages.RcloneConfigPage"
+             x:DataType="vm:RcloneConfigPageViewModel">
+    <Design.DataContext>
+        <vm:RcloneConfigPageViewModel />
+    </Design.DataContext>
+    <Grid RowDefinitions="Auto,*,Auto">
+        <!-- 页面标题 -->
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" Padding="15">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <TextBlock Grid.Column="0" Text="Rclone 配置" FontSize="20" FontWeight="Bold" 
+                           Foreground="{DynamicResource ForegroundBrush}" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="打开配置文件夹" Command="{Binding OpenConfigFolderCommand}" 
+                        Margin="0,0,10,0" Padding="15,5" />
+                <Button Grid.Column="2" Content="刷新" Command="{Binding RefreshConfigCommand}" Padding="15,5" />
+            </Grid>
+        </Border>
+
+        <!-- 主内容 -->
+        <ScrollViewer Grid.Row="1" Padding="10">
+            <StackPanel Spacing="15">
+                <!-- Rclone 信息卡片 -->
+                <Border Background="{DynamicResource SurfaceHighBrush}" CornerRadius="8" Padding="15">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Rclone 信息" FontSize="16" FontWeight="Bold" 
+                                   Foreground="{DynamicResource ForegroundBrush}" />
+                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto">
+                            <!-- 版本 -->
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="版本：" 
+                                       Foreground="{DynamicResource ForegroundMutedBrush}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding RcloneVersion}" 
+                                       FontWeight="Bold" Foreground="{DynamicResource SuccessBrush}" 
+                                       VerticalAlignment="Center" />
+
+                            <!-- 配置文件路径 -->
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="配置文件：" 
+                                       Foreground="{DynamicResource ForegroundMutedBrush}" VerticalAlignment="Center"
+                                       Margin="0,8,0,0" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ConfigFilePath}" 
+                                       Foreground="{DynamicResource ForegroundBrush}" 
+                                       VerticalAlignment="Center" Margin="0,8,0,0"
+                                       TextWrapping="Wrap" />
+
+                            <!-- 缓存目录 -->
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="缓存目录：" 
+                                       Foreground="{DynamicResource ForegroundMutedBrush}" VerticalAlignment="Center"
+                                       Margin="0,8,0,0" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding CacheDir}" 
+                                       Foreground="{DynamicResource ForegroundBrush}" 
+                                       VerticalAlignment="Center" Margin="0,8,0,0"
+                                       TextWrapping="Wrap" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Remote 配置列表 -->
+                <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8">
+                    <Grid RowDefinitions="Auto,*">
+                        <!-- 标题栏 -->
+                        <Border Grid.Row="0" Background="{DynamicResource InfoBrush}" Padding="10" CornerRadius="8,8,0,0">
+                            <Grid ColumnDefinitions="*,100,100,80">
+                                <TextBlock Grid.Column="0" Text="Remote 名称" FontWeight="Bold" 
+                                           Foreground="{DynamicResource AccentForegroundBrush}" />
+                                <TextBlock Grid.Column="1" Text="类型" FontWeight="Bold" 
+                                           Foreground="{DynamicResource AccentForegroundBrush}" />
+                                <TextBlock Grid.Column="2" Text="本地盘符" FontWeight="Bold" 
+                                           Foreground="{DynamicResource AccentForegroundBrush}" />
+                                <TextBlock Grid.Column="3" Text="状态" FontWeight="Bold" 
+                                           Foreground="{DynamicResource AccentForegroundBrush}" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Remote 列表 -->
+                        <ListBox Grid.Row="1" ItemsSource="{Binding Remotes}" SelectedItem="{Binding SelectedRemote}"
+                                 BorderThickness="0" Background="Transparent">
+                            <ListBox.Styles>
+                                <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+                                    <Setter Property="Background" Value="{DynamicResource ListItemHoverBrush}" />
+                                </Style>
+                                <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                                    <Setter Property="Background" Value="{DynamicResource ListItemSelectedBrush}" />
+                                </Style>
+                                <!-- 选中状态下的文字颜色覆盖 -->
+                                <Style Selector="ListBoxItem:selected TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource ListItemSelectedForegroundBrush}" />
+                                </Style>
+                            </ListBox.Styles>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="*,100,100,80" Margin="5,8">
+                                        <!-- 名称 -->
+                                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="Bold" 
+                                                   VerticalAlignment="Center" Foreground="{DynamicResource ForegroundBrush}" />
+
+                                        <!-- 类型 -->
+                                        <TextBlock Grid.Column="1" Text="{Binding Type}" VerticalAlignment="Center" 
+                                                   Foreground="{DynamicResource ForegroundMutedBrush}" />
+
+                                        <!-- 盘符 -->
+                                        <TextBlock Grid.Column="2" Text="{Binding LocalDrive}" VerticalAlignment="Center" 
+                                                   FontWeight="Bold" Foreground="{DynamicResource SuccessBrush}" />
+
+                                        <!-- 状态 -->
+                                        <TextBlock Grid.Column="3" Text="已挂载" VerticalAlignment="Center" 
+                                                   Foreground="{DynamicResource SuccessBrush}" FontWeight="Bold" 
+                                                   IsVisible="{Binding IsMounted}" />
+                                        <TextBlock Grid.Column="3" Text="未挂载" VerticalAlignment="Center" 
+                                                   Foreground="{DynamicResource ForegroundMutedBrush}" 
+                                                   IsVisible="{Binding !IsMounted}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </Border>
+
+                <!-- 操作提示卡片 -->
+                <Border Background="{DynamicResource SurfaceHighBrush}" CornerRadius="8" Padding="15">
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="操作提示" FontSize="14" FontWeight="Bold" 
+                                   Foreground="{DynamicResource ForegroundBrush}" />
+                        <TextBlock Text="• 点击列表项选中 Remote，可在底部进行卸载或删除操作"
+                                   Foreground="{DynamicResource ForegroundMutedBrush}" FontSize="12" TextWrapping="Wrap" />
+                        <TextBlock Text="• 已挂载的 Remote 会显示绿色状态"
+                                   Foreground="{DynamicResource ForegroundMutedBrush}" FontSize="12" TextWrapping="Wrap" />
+                        <TextBlock Text="• 删除 Remote 会同时从 rclone 配置中移除"
+                                   Foreground="{DynamicResource ForegroundMutedBrush}" FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 操作按钮 -->
+        <Border Grid.Row="2" Background="{DynamicResource SurfaceHighBrush}" Padding="15">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button Content="卸载选中" Command="{Binding UnmountSelectedCommand}" 
+                        IsEnabled="{Binding SelectedRemote.IsMounted}" 
+                        Background="{DynamicResource ErrorBrush}" 
+                        Foreground="{DynamicResource AccentForegroundBrush}" Padding="15,5" />
+                <Button Content="删除选中" Command="{Binding DeleteRemoteCommand}" 
+                        IsEnabled="{Binding SelectedRemote, Converter={x:Static ObjectConverters.IsNotNull}}" 
+                        Background="{DynamicResource WarningBrush}" 
+                        Foreground="{DynamicResource AccentForegroundBrush}" Padding="15,5" />
+                <Button Content="打开缓存文件夹" Command="{Binding OpenCacheFolderCommand}" 
+                        Padding="15,5" Margin="10,0,0,0" />
+                <Button Content="检查更新" Command="{Binding CheckUpdateCommand}" 
+                        Padding="15,5" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

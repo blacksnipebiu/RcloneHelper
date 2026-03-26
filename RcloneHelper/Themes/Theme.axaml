@@ -1,0 +1,43 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 默认资源（深色主题） -->
+    <Styles.Resources>
+        <!-- 强调色 -->
+        <SolidColorBrush x:Key="AccentBrush">#4CAF50</SolidColorBrush>
+        <SolidColorBrush x:Key="AccentForegroundBrush">#ffffff</SolidColorBrush>
+
+        <!-- 状态色 -->
+        <SolidColorBrush x:Key="SuccessBrush">#4CAF50</SolidColorBrush>
+        <SolidColorBrush x:Key="WarningBrush">#FF9800</SolidColorBrush>
+        <SolidColorBrush x:Key="ErrorBrush">#e81123</SolidColorBrush>
+        <SolidColorBrush x:Key="InfoBrush">#2196F3</SolidColorBrush>
+
+        <!-- 深色主题 -->
+        <SolidColorBrush x:Key="BackgroundBrush">#1e1e1e</SolidColorBrush>
+        <SolidColorBrush x:Key="SurfaceBrush">#2d2d2d</SolidColorBrush>
+        <SolidColorBrush x:Key="SurfaceHighBrush">#252525</SolidColorBrush>
+        <SolidColorBrush x:Key="SurfaceLowBrush">#3d3d3d</SolidColorBrush>
+        <SolidColorBrush x:Key="ForegroundBrush">#ffffff</SolidColorBrush>
+        <SolidColorBrush x:Key="ForegroundSecondaryBrush">#cccccc</SolidColorBrush>
+        <SolidColorBrush x:Key="ForegroundMutedBrush">#999999</SolidColorBrush>
+        <SolidColorBrush x:Key="ForegroundDisabledBrush">#666666</SolidColorBrush>
+        <SolidColorBrush x:Key="BorderBrush">#3d3d3d</SolidColorBrush>
+        <SolidColorBrush x:Key="CardBrush">#2d2d2d</SolidColorBrush>
+        <SolidColorBrush x:Key="TitleBarBackgroundBrush">#252525</SolidColorBrush>
+        <SolidColorBrush x:Key="TitleBarForegroundBrush">#cccccc</SolidColorBrush>
+        <SolidColorBrush x:Key="NavBarBackgroundBrush">#2d2d2d</SolidColorBrush>
+        <SolidColorBrush x:Key="NavBarItemHoverBrush">#3d3d3d</SolidColorBrush>
+        <SolidColorBrush x:Key="NavBarItemSelectedBrush">#4CAF50</SolidColorBrush>
+        <SolidColorBrush x:Key="ContentBackgroundBrush">#1e1e1e</SolidColorBrush>
+        <SolidColorBrush x:Key="ListItemHoverBrush">#3d3d3d</SolidColorBrush>
+        <SolidColorBrush x:Key="ListItemSelectedBrush">#4CAF50</SolidColorBrush>
+        <SolidColorBrush x:Key="ListItemSelectedForegroundBrush">#ffffff</SolidColorBrush>
+    </Styles.Resources>
+
+    <!-- 浅色主题覆盖 -->
+    <Style Selector="Window[Tag=LightMode] TextBlock, UserControl[Tag=LightMode] TextBlock">
+        <Setter Property="Foreground" Value="#1a1a1a" />
+    </Style>
+
+</Styles>
