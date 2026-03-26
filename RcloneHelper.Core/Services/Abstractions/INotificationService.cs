@@ -19,9 +19,6 @@ public interface INotificationService
     /// <summary>
     /// 显示通知
     /// </summary>
-    /// <param name="message">消息内容</param>
-    /// <param name="type">通知类型</param>
-    /// <param name="duration">显示时长（毫秒），默认 3000ms</param>
     void Show(string message, NotificationType type = NotificationType.Info, int duration = 3000);
 
     /// <summary>

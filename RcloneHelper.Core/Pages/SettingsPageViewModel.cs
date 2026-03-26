@@ -1,7 +1,9 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using RcloneHelper.Helpers;
 using RcloneHelper.Models;
 using RcloneHelper.Services.Abstractions;
@@ -19,6 +21,12 @@ public partial class SettingsPageViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _autoMountOnStart;
+    
+    [ObservableProperty]
+    private string _rclonePath = "";
+
+    [ObservableProperty]
+    private SystemDependency? _fuseDependency;
 
     public SettingsPageViewModel(ISystemService systemService, INotificationService notificationService)
     {
@@ -26,6 +34,7 @@ public partial class SettingsPageViewModel : ObservableObject
         _notificationService = notificationService;
         LoadSettings();
         CheckAutoStartStatus();
+        CheckDependencies();
         _isInitializing = false;
     }
 
@@ -41,12 +50,17 @@ public partial class SettingsPageViewModel : ObservableObject
         else
         {
             _notificationService.ShowError("设置开机启动失败");
-            // 恢复原状态
             AutoStartEnabled = !value;
         }
     }
 
     partial void OnAutoMountOnStartChanged(bool value)
+    {
+        if (_isInitializing) return;
+        SaveSettingsToFile();
+    }
+    
+    partial void OnRclonePathChanged(string value)
     {
         if (_isInitializing) return;
         SaveSettingsToFile();
@@ -60,10 +74,11 @@ public partial class SettingsPageViewModel : ObservableObject
             try
             {
                 var json = File.ReadAllText(settingsPath);
-                var settings = JsonSerializer.Deserialize(json, AppJsonContext.Default.AppSettings);
+                var settings = JsonSerializer.Deserialize(json, AppJsonContext.Default.AppConfig);
                 if (settings != null)
                 {
                     AutoMountOnStart = settings.AutoMountOnStart;
+                    RclonePath = settings.RclonePath;
                 }
             }
             catch { }
@@ -74,11 +89,12 @@ public partial class SettingsPageViewModel : ObservableObject
     {
         try
         {
-            var settings = new AppSettings
+            var settings = new AppConfig
             {
-                AutoMountOnStart = AutoMountOnStart
+                AutoMountOnStart = AutoMountOnStart,
+                RclonePath = RclonePath
             };
-            var json = JsonSerializer.Serialize(settings, AppJsonContext.Default.AppSettings);
+            var json = JsonSerializer.Serialize(settings, AppJsonContext.Default.AppConfig);
             File.WriteAllText(PathUtil.SettingsPath, json);
         }
         catch (Exception ex)
@@ -90,5 +106,37 @@ public partial class SettingsPageViewModel : ObservableObject
     private void CheckAutoStartStatus()
     {
         AutoStartEnabled = _systemService.IsAutoStartEnabled;
+    }
+
+    private void CheckDependencies()
+    {
+        FuseDependency = _systemService.GetFuseDependency();
+    }
+
+    [RelayCommand]
+    private void OpenInstallUrl()
+    {
+        if (FuseDependency == null || string.IsNullOrEmpty(FuseDependency.InstallUrl))
+            return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = FuseDependency.InstallUrl,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            _notificationService.ShowError($"无法打开链接: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void RefreshDependencies()
+    {
+        CheckDependencies();
+        _notificationService.ShowSuccess("依赖状态已刷新");
     }
 }

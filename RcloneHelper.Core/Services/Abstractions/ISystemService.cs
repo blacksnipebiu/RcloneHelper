@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using RcloneHelper.Models;
 
 namespace RcloneHelper.Services.Abstractions;
 
@@ -75,6 +76,11 @@ public interface ISystemService
     /// 获取应用程序可执行文件路径
     /// </summary>
     string AppExecutablePath { get; }
+
+    /// <summary>
+    /// 获取 FUSE 依赖状态（用于 rclone mount）
+    /// </summary>
+    SystemDependency? GetFuseDependency();
 
     #endregion
 }

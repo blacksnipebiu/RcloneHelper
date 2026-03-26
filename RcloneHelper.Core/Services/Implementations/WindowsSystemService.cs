@@ -6,6 +6,7 @@ using System.Linq;
 using System.Management;
 using System.Runtime.Versioning;
 using RcloneHelper.Helpers;
+using RcloneHelper.Models;
 using RcloneHelper.Services.Abstractions;
 
 namespace RcloneHelper.Services.Implementations;
@@ -23,7 +24,7 @@ public class WindowsSystemService : ISystemService
 
     public PlatformType Platform => PlatformType.Windows;
 
-    public string AppExecutablePath => PathUtil.AppExecutablePath;
+    public string AppExecutablePath => System.Reflection.Assembly.GetExecutingAssembly().Location;
 
     #region 开机自启
 
@@ -201,6 +202,76 @@ public class WindowsSystemService : ISystemService
         {
             return false;
         }
+    }
+
+    public SystemDependency? GetFuseDependency()
+    {
+        var dependency = new SystemDependency
+        {
+            Name = "WinFsp",
+            Description = "Windows FUSE 驱动，rclone mount 必需",
+            InstallUrl = "https://github.com/winfsp/winfsp/releases",
+            Icon = "🪟"
+        };
+
+        try
+        {
+            bool isInstalled = false;
+
+            // 1. 检查注册表 InstallDir（最可靠的方法）
+            // WinFsp 安装后会在这里设置 InstallDir
+            string[] registryPaths = {
+                @"SOFTWARE\WinFsp",
+                @"SOFTWARE\WOW6432Node\WinFsp"
+            };
+
+            foreach (var regPath in registryPaths)
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(regPath, false);
+                if (key != null)
+                {
+                    var installDir = key.GetValue("InstallDir") as string;
+                    if (!string.IsNullOrEmpty(installDir) && Directory.Exists(installDir))
+                    {
+                        isInstalled = true;
+                        break;
+                    }
+                }
+            }
+
+            // 2. 如果注册表未找到，检查服务键和文件
+            if (!isInstalled)
+            {
+                using var serviceKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\WinFsp", false);
+                if (serviceKey != null)
+                {
+                    // 服务存在，检查 bin 目录
+                    var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+                    var possiblePaths = new[] {
+                        Path.Combine(programFiles, "WinFsp", "bin", "winfsp-x64.dll"),
+                        Path.Combine(programFiles, "WinFsp", "bin", "winfsp.dll"),
+                        @"C:\Program Files (x86)\WinFsp\bin\winfsp-x64.dll"
+                    };
+
+                    foreach (var path in possiblePaths)
+                    {
+                        if (File.Exists(path))
+                        {
+                            isInstalled = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            dependency.Status = isInstalled ? DependencyStatus.Installed : DependencyStatus.NotInstalled;
+        }
+        catch
+        {
+            dependency.Status = DependencyStatus.NotInstalled;
+        }
+
+        return dependency;
     }
 
     #endregion

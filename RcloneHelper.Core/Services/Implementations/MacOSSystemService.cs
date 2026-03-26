@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Versioning;
 using RcloneHelper.Helpers;
+using RcloneHelper.Models;
 using RcloneHelper.Services.Abstractions;
 
 namespace RcloneHelper.Services.Implementations;
@@ -23,7 +24,7 @@ public class MacOSSystemService : ISystemService
 
     public PlatformType Platform => PlatformType.macOS;
 
-    public string AppExecutablePath => PathUtil.AppExecutablePath;
+    public string AppExecutablePath => System.Reflection.Assembly.GetExecutingAssembly().Location;
 
     #region 开机自启
 
@@ -211,6 +212,34 @@ public class MacOSSystemService : ISystemService
         {
             return false;
         }
+    }
+
+    public SystemDependency? GetFuseDependency()
+    {
+        // 检查 macFUSE 是否安装（通过检查 /usr/local/lib/libfuse*.dylib 或 kext）
+        var dependency = new SystemDependency
+        {
+            Name = "macFUSE",
+            Description = "macOS FUSE 驱动，rclone mount 必需",
+            InstallUrl = "https://github.com/osxfuse/macfuse/releases",
+            Icon = "🍎"
+        };
+
+        try
+        {
+            // 检查关键文件或库是否存在
+            dependency.Status = (
+                File.Exists("/usr/local/lib/libfuse.2.dylib") ||
+                File.Exists("/usr/local/lib/libfuse.1.dylib") ||
+                Directory.Exists("/System/Library/Extensions/fusefs.kext")
+            ) ? DependencyStatus.Installed : DependencyStatus.NotInstalled;
+        }
+        catch
+        {
+            dependency.Status = DependencyStatus.NotInstalled;
+        }
+
+        return dependency;
     }
 
     #endregion

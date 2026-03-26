@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RcloneHelper.Core.Pages;
+using RcloneHelper.Services.Abstractions;
 
 namespace RcloneHelper.Core.Windows;
 
@@ -26,21 +27,31 @@ public partial class MainWindowViewModel : ObservableObject
     public MainWindowViewModel(
         HomePageViewModel homePageViewModel,
         RcloneConfigPageViewModel rcloneConfigPageViewModel,
-        SettingsPageViewModel settingsPageViewModel)
+        SettingsPageViewModel settingsPageViewModel,
+        ISystemService systemService)
     {
         HomePageViewModel = homePageViewModel;
         RcloneConfigPageViewModel = rcloneConfigPageViewModel;
         SettingsPageViewModel = settingsPageViewModel;
 
         CurrentPage = HomePageViewModel;
-        _ = CheckAutoMountAsync();
+        _ = CheckDependenciesAndMountAsync(systemService);
     }
 
-    private async Task CheckAutoMountAsync()
+    private async Task CheckDependenciesAndMountAsync(ISystemService systemService)
     {
         await Task.Delay(500);
 
-        // 先刷新挂载状态，同步正在运行的 rclone 进程
+        // 检查 FUSE 依赖
+        var fuseDependency = systemService.GetFuseDependency();
+        if (fuseDependency?.NeedsInstallation == true)
+        {
+            // 强制导航到设置页面
+            NavigateSettings();
+            return;
+        }
+
+        // 刷新挂载状态
         HomePageViewModel.RefreshMountStatus();
 
         if (SettingsPageViewModel.AutoMountOnStart)

@@ -14,6 +14,7 @@ public partial class HomePageViewModel : ObservableObject
 {
     private readonly MountService _mountService;
     private readonly INotificationService _notificationService;
+    private readonly IDialogService _dialogService;
 
     [ObservableProperty]
     private ObservableCollection<MountInfo> _allMounts = new();
@@ -36,10 +37,11 @@ public partial class HomePageViewModel : ObservableObject
     // 记录正在编辑的原始挂载对象（用于区分新增和编辑）
     private MountInfo? _editingOriginalMount;
 
-    public HomePageViewModel(MountService mountService, INotificationService notificationService)
+    public HomePageViewModel(MountService mountService, INotificationService notificationService, IDialogService dialogService)
     {
         _mountService = mountService;
         _notificationService = notificationService;
+        _dialogService = dialogService;
         LoadMountsFromService();
     }
 
@@ -121,9 +123,22 @@ public partial class HomePageViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void EditMount()
+    private async Task EditMount()
     {
         if (SelectedMount == null) return;
+
+        // 如果已挂载，需要确认
+        if (SelectedMount.IsMounted)
+        {
+            var confirmed = await _dialogService.ShowConfirmationAsync(
+                "编辑挂载",
+                "编辑挂载需要先卸载挂载，是否继续？");
+            if (!confirmed) return;
+
+            // 卸载挂载
+            await UnmountAsync(SelectedMount);
+        }
+
         EditMountInternal(SelectedMount);
     }
 
@@ -249,7 +264,7 @@ public partial class HomePageViewModel : ObservableObject
                 {
                     try
                     {
-                        await _mountService.MountAsync(_editingOriginalMount.Name);
+                        await _mountService.MountAsync(_editingOriginalMount.Name, originalName);
                         _notificationService.ShowSuccess("挂载已保存并重新挂载");
                     }
                     catch (Exception ex)
@@ -364,9 +379,22 @@ public partial class HomePageViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void EditItem(MountInfo? mount)
+    private async Task EditItem(MountInfo? mount)
     {
         if (mount == null) return;
+
+        // 如果已挂载，需要确认
+        if (mount.IsMounted)
+        {
+            var confirmed = await _dialogService.ShowConfirmationAsync(
+                "编辑挂载",
+                "编辑挂载需要先卸载挂载，是否继续？");
+            if (!confirmed) return;
+
+            // 卸载挂载
+            await UnmountAsync(mount);
+        }
+
         SelectedMount = mount;
         EditMountInternal(mount);
     }

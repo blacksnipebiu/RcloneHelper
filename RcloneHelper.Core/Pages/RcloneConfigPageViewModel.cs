@@ -42,7 +42,7 @@ public partial class RcloneConfigPageViewModel : ObservableObject
     public RcloneConfigPageViewModel(ISystemService systemService)
     {
         _systemService = systemService;
-        _rclonePath = PathUtil.FindRclonePath();
+        _rclonePath = PathUtil.GetConfiguredRclonePath();
         LoadRcloneInfo();
     }
 

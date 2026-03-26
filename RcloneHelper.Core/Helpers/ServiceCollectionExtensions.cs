@@ -21,6 +21,9 @@ public static class ServiceCollectionExtensions
         Justification = "使用具体的类型注册，裁剪器可以保留所有必需的类型")]
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
+        // 注册日志服务
+        services.AddSingleton<ILoggerService, FileLoggerService>();
+
         // 注册通知服务
         services.AddSingleton<INotificationService, NotificationService>();
 
@@ -31,8 +34,15 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<MountService>();
 
         // 注册 ViewModels - Singleton 保留桌面应用状态
-        services.AddSingleton<MainWindowViewModel>();
-        services.AddSingleton<HomePageViewModel>();
+        services.AddSingleton<HomePageViewModel>(sp => new HomePageViewModel(
+            sp.GetRequiredService<MountService>(),
+            sp.GetRequiredService<INotificationService>(),
+            sp.GetRequiredService<IDialogService>()));
+        services.AddSingleton<MainWindowViewModel>(sp => new MainWindowViewModel(
+            sp.GetRequiredService<HomePageViewModel>(),
+            sp.GetRequiredService<RcloneConfigPageViewModel>(),
+            sp.GetRequiredService<SettingsPageViewModel>(),
+            sp.GetRequiredService<ISystemService>()));
         services.AddSingleton<RcloneConfigPageViewModel>();
         services.AddSingleton<SettingsPageViewModel>();
 

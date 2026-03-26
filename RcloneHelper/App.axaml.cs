@@ -4,6 +4,7 @@ using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
 using RcloneHelper.Core.Windows;
 using RcloneHelper.Helpers;
+using RcloneHelper.Services;
 using RcloneHelper.Services.Abstractions;
 using RcloneHelper.Views.Windows;
 
@@ -12,6 +13,7 @@ namespace RcloneHelper;
 public partial class App : Application
 {
     private ServiceProvider? _serviceProvider;
+    private ILoggerService? _logger;
 
     public override void Initialize()
     {
@@ -20,15 +22,27 @@ public partial class App : Application
         // 配置依赖注入容器
         var services = new ServiceCollection();
         services.AddApplicationServices();
+
+        // 注册对话框服务（必须在 BuildServiceProvider 之前）
+        services.AddSingleton<IDialogService, DialogService>();
+
         _serviceProvider = services.BuildServiceProvider();
+
+        // 记录启动日志
+        _logger = _serviceProvider.GetRequiredService<ILoggerService>();
+        _logger.Info("RcloneHelper 启动");
     }
 
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // 从 DI 容器获取 MainWindowViewModel
+            // 记录主窗口初始化
+            _logger?.Info("初始化主窗口");
+
+            // 从 DI 容器获取服务
             var mainWindowViewModel = _serviceProvider!.GetRequiredService<MainWindowViewModel>();
+            var dialogService = _serviceProvider!.GetRequiredService<IDialogService>();
 
             // 创建 MainWindow
             var mainWindow = new MainWindow
@@ -36,13 +50,21 @@ public partial class App : Application
                 DataContext = mainWindowViewModel
             };
 
-            // 初始化通知服务
+            // 初始化服务
             var notificationService = _serviceProvider!.GetRequiredService<INotificationService>();
-            mainWindow.InitializeNotificationService(notificationService);
+            mainWindow.InitializeServices(notificationService, dialogService);
 
             desktop.MainWindow = mainWindow;
+
+            // 订阅关闭事件
+            desktop.Exit += OnDesktopExit;
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private void OnDesktopExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
+    {
+        _logger?.Info("RcloneHelper 关闭");
     }
 }

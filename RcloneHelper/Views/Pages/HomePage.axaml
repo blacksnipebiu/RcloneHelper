@@ -40,13 +40,13 @@
             <Grid Margin="5">
                 <Grid RowDefinitions="Auto,*">
                     <!-- 标题栏 -->
-                    <Border Grid.Row="0" Background="{DynamicResource AccentBrush}" Padding="10">
-                        <Grid ColumnDefinitions="*,80,80,Auto,100">
-                            <TextBlock Grid.Column="0" Text="名称" FontWeight="Bold" Foreground="{DynamicResource AccentForegroundBrush}" />
-                            <TextBlock Grid.Column="1" Text="类型" FontWeight="Bold" Foreground="{DynamicResource AccentForegroundBrush}" />
-                            <TextBlock Grid.Column="2" Text="盘符" FontWeight="Bold" Foreground="{DynamicResource AccentForegroundBrush}" />
-                            <TextBlock Grid.Column="3" Text="状态" FontWeight="Bold" Foreground="{DynamicResource AccentForegroundBrush}" />
-                            <TextBlock Grid.Column="4" Text="操作" FontWeight="Bold" Foreground="{DynamicResource AccentForegroundBrush}" />
+                    <Border Grid.Row="0" Background="{DynamicResource AccentBrush}" Padding="10,8">
+                        <Grid ColumnDefinitions="50,*,80,80,100">
+                            <TextBlock Grid.Column="0" Text="状态" FontWeight="Bold" Foreground="{DynamicResource AccentForegroundBrush}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="名称" FontWeight="Bold" Foreground="{DynamicResource AccentForegroundBrush}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Text="类型" FontWeight="Bold" Foreground="{DynamicResource AccentForegroundBrush}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="3" Text="盘符" FontWeight="Bold" Foreground="{DynamicResource AccentForegroundBrush}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="4" Text="操作" FontWeight="Bold" Foreground="{DynamicResource AccentForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
                         </Grid>
                     </Border>
 
@@ -76,26 +76,26 @@
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="10,8">
-                                        <Grid ColumnDefinitions="*,80,80,Auto,100">
+                                        <Grid ColumnDefinitions="50,*,80,80,100">
+                                            <!-- 状态 -->
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Spacing="6">
+                                                <Ellipse Width="10" Height="10" Fill="{DynamicResource SuccessBrush}" 
+                                                         IsVisible="{Binding IsMounted}" />
+                                                <Ellipse Width="10" Height="10" Fill="{DynamicResource ForegroundMutedBrush}" 
+                                                         IsVisible="{Binding !IsMounted}" />
+                                            </StackPanel>
+
                                             <!-- 名称 -->
-                                            <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="Bold" 
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="Bold" 
                        VerticalAlignment="Center" Foreground="{DynamicResource ForegroundBrush}" />
 
                                             <!-- 类型 -->
-                                            <TextBlock Grid.Column="1" Text="{Binding Type}" VerticalAlignment="Center" 
+                                            <TextBlock Grid.Column="2" Text="{Binding Type}" VerticalAlignment="Center" 
                        Foreground="{DynamicResource ForegroundMutedBrush}" />
 
                                             <!-- 盘符 -->
-                                            <TextBlock Grid.Column="2" Text="{Binding LocalDrive}" VerticalAlignment="Center" 
+                                            <TextBlock Grid.Column="3" Text="{Binding LocalDrive}" VerticalAlignment="Center" 
                        FontWeight="Bold" Foreground="{DynamicResource SuccessBrush}" />
-
-                                            <!-- 状态 -->
-                                            <TextBlock Grid.Column="3" Text="已挂载" VerticalAlignment="Center" 
-                       Foreground="{DynamicResource SuccessBrush}" FontWeight="Bold" 
-                       IsVisible="{Binding IsMounted}" />
-                                            <TextBlock Grid.Column="3" Text="未挂载" VerticalAlignment="Center" 
-                       Foreground="{DynamicResource ForegroundMutedBrush}" 
-                       IsVisible="{Binding !IsMounted}" />
 
                                             <!-- 操作按钮 -->
                                             <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="2">

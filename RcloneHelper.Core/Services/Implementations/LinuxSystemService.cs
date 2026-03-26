@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Versioning;
 using RcloneHelper.Helpers;
+using RcloneHelper.Models;
 using RcloneHelper.Services.Abstractions;
 
 namespace RcloneHelper.Services.Implementations;
@@ -24,7 +25,7 @@ public class LinuxSystemService : ISystemService
 
     public PlatformType Platform => PlatformType.Linux;
 
-    public string AppExecutablePath => PathUtil.AppExecutablePath;
+    public string AppExecutablePath => System.Reflection.Assembly.GetExecutingAssembly().Location;
 
     #region 开机自启
 
@@ -222,6 +223,29 @@ public class LinuxSystemService : ISystemService
         {
             return false;
         }
+    }
+
+    public SystemDependency? GetFuseDependency()
+    {
+        // 检查 /dev/fuse 是否存在
+        var dependency = new SystemDependency
+        {
+            Name = "FUSE",
+            Description = "Linux FUSE 驱动，rclone mount 必需",
+            InstallUrl = "https://github.com/libfuse/libfuse",
+            Icon = "🐧"
+        };
+
+        try
+        {
+            dependency.Status = File.Exists("/dev/fuse") ? DependencyStatus.Installed : DependencyStatus.NotInstalled;
+        }
+        catch
+        {
+            dependency.Status = DependencyStatus.NotInstalled;
+        }
+
+        return dependency;
     }
 
     #endregion

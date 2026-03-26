@@ -19,15 +19,17 @@ namespace RcloneHelper.Services;
 public class MountService
 {
     private readonly ISystemService _systemService;
+    private readonly ILoggerService _logger;
     private readonly string _rclonePath;
     private readonly Dictionary<string, Process> _mountProcesses = new();
 
     public ObservableCollection<MountInfo> Mounts { get; } = new();
 
-    public MountService(ISystemService systemService)
+    public MountService(ISystemService systemService, ILoggerService logger)
     {
         _systemService = systemService;
-        _rclonePath = PathUtil.FindRclonePath();
+        _logger = logger;
+        _rclonePath = PathUtil.GetConfiguredRclonePath();
         LoadMounts();
     }
 
@@ -143,6 +145,7 @@ public class MountService
     {
         try
         {
+            _logger.Debug($"删除 rclone 配置: {name}");
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
@@ -158,9 +161,9 @@ public class MountService
             process.Start();
             process.WaitForExit(5000);
         }
-        catch
+        catch (Exception ex)
         {
-            // 忽略删除失败的错误
+            _logger.Error($"删除 rclone 配置失败: {name}, 错误: {ex.Message}");
         }
     }
 
@@ -272,26 +275,32 @@ public class MountService
     /// 执行挂载操作
     /// </summary>
     /// <param name="name">挂载名称</param>
+    /// <param name="oldName">旧名称（如果名称变更需要删除旧的 rclone 配置）</param>
     /// <returns>挂载是否成功</returns>
-    public async Task<bool> MountAsync(string name)
+    public async Task<bool> MountAsync(string name, string? oldName = null)
     {
         var mount = GetMount(name);
         if (mount == null)
+        {
+            _logger.Error($"挂载失败: 未找到名为 {name} 的挂载");
             throw new InvalidOperationException($"未找到名为 {name} 的挂载");
+        }
 
         if (mount.IsMounted)
             return true;
 
         try
         {
+            _logger.Info($"开始挂载: {name} ({mount.Type}) -> {mount.LocalDrive}");
             mount.Status = "正在挂载...";
 
-            // 创建 rclone 配置
-            await CreateRcloneConfigAsync(mount);
+            // 创建 rclone 配置（如果名称变更，删除旧的配置）
+            await CreateRcloneConfigAsync(mount, oldName);
 
             // 执行挂载
+            // 注意：remote path 必须以冒号结尾，rclone 才能识别为远程引用
             var remotePath = string.IsNullOrWhiteSpace(mount.RemotePath)
-                ? mount.Name
+                ? $"{mount.Name}:"
                 : $"{mount.Name}:{mount.RemotePath}";
 
             // 构建挂载参数
@@ -299,12 +308,10 @@ public class MountService
             
             if (mount.UseNetworkMode)
             {
-                // 网络驱动器模式：显示为 "名称 (\\rclone)"
                 mountArgs += $" --network-mode --volname \\\\rclone\\{mount.Name}";
             }
             else
             {
-                // 普通磁盘模式：显示为 "名称"
                 mountArgs += $" --volname \"{mount.Name}\"";
             }
 
@@ -328,14 +335,16 @@ public class MountService
                 {
                     mount.IsMounted = false;
                     mount.Status = "未挂载";
+                    _logger.Warning($"挂载意外退出: {name}");
                 }
-                _mountProcesses.Remove(mount.Name);
+                _mountProcesses.Remove(name);  // 使用挂载时的原始名称
                 mount.MountProcess = null;
             };
 
             mountProcess.Start();
             mount.MountProcess = mountProcess;
-            _mountProcesses[mount.Name] = mountProcess;
+            _mountProcesses[name] = mountProcess;  // 使用原始名称作为 key
+            _logger.Debug($"执行命令: {_rclonePath} {mountArgs}");
 
             // 等待挂载完成
             await Task.Delay(2000);
@@ -344,18 +353,21 @@ public class MountService
             {
                 mount.IsMounted = true;
                 mount.Status = $"已挂载到 {mount.LocalDrive}";
+                _logger.Info($"挂载成功: {name} -> {mount.LocalDrive}");
                 return true;
             }
             else
             {
                 var error = await mountProcess.StandardError.ReadToEndAsync();
                 mount.Status = "挂载失败";
+                _logger.Error($"挂载失败: {name}, 错误: {error}");
                 throw new InvalidOperationException($"挂载失败: {error}");
             }
         }
         catch (Exception ex)
         {
             mount.Status = "挂载失败";
+            _logger.Error($"挂载异常: {name}, 错误: {ex.Message}");
             throw new InvalidOperationException($"挂载错误: {ex.Message}", ex);
         }
     }
@@ -368,18 +380,24 @@ public class MountService
     {
         var mount = GetMount(name);
         if (mount == null)
+        {
+            _logger.Error($"卸载失败: 未找到名为 {name} 的挂载");
             return;
+        }
 
         if (!mount.IsMounted && mount.MountProcess == null)
             return;
 
         try
         {
+            _logger.Info($"开始卸载: {name} ({mount.LocalDrive})");
+
             // 终止挂载进程
             if (mount.MountProcess != null && !mount.MountProcess.HasExited)
             {
                 mount.MountProcess.Kill();
                 mount.MountProcess.WaitForExit(5000);
+                _logger.Debug($"已终止挂载进程: {name}");
             }
 
             // 执行 rclone umount
@@ -398,14 +416,17 @@ public class MountService
 
             unmountProcess.Start();
             unmountProcess.WaitForExit(5000);
+            _logger.Debug($"执行命令: {_rclonePath} umount {mount.LocalDrive}");
 
             mount.IsMounted = false;
             mount.Status = "未挂载";
             mount.MountProcess = null;
             _mountProcesses.Remove(name);
+            _logger.Info($"卸载成功: {name}");
         }
         catch (Exception ex)
         {
+            _logger.Error($"卸载异常: {name}, 错误: {ex.Message}");
             throw new InvalidOperationException($"卸载错误: {ex.Message}", ex);
         }
     }
@@ -559,8 +580,14 @@ public class MountService
 
     #region 私有方法
 
-    private async Task CreateRcloneConfigAsync(MountInfo mount)
+    private async Task CreateRcloneConfigAsync(MountInfo mount, string? oldName = null)
     {
+        // 如果名称变更了，先删除旧的 remote 配置
+        if (!string.IsNullOrEmpty(oldName) && oldName != mount.Name)
+        {
+            await DeleteRcloneConfigAsync(oldName);
+        }
+
         var configArgs = $"config create {mount.Name} {mount.Type} ";
         configArgs += $"url \"{mount.Url}\" ";
 
@@ -586,8 +613,41 @@ public class MountService
             }
         };
 
+        _logger.Debug($"创建/更新 rclone 配置: {mount.Name}");
         process.Start();
         await process.WaitForExitAsync();
+
+        if (process.ExitCode != 0)
+        {
+            var error = await process.StandardError.ReadToEndAsync();
+            _logger.Error($"创建 rclone 配置失败: {mount.Name}, 错误: {error}");
+        }
+    }
+
+    private async Task DeleteRcloneConfigAsync(string name)
+    {
+        try
+        {
+            _logger.Debug($"删除旧的 rclone 配置: {name}");
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = _rclonePath,
+                    Arguments = $"config delete {name}",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            process.Start();
+            await process.WaitForExitAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"删除 rclone 配置失败: {name}, 错误: {ex.Message}");
+        }
     }
 
     #endregion

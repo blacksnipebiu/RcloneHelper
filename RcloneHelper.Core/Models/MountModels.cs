@@ -144,9 +144,3 @@ public partial class MountInfo : ObservableObject
         };
     }
 }
-
-public class AppSettings
-{
-    public bool AutoMountOnStart { get; set; }
-    public bool IsDarkMode { get; set; } = true;
-}

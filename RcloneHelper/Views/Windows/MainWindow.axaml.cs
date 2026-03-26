@@ -48,9 +48,9 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 初始化通知服务（由 App.axaml.cs 调用）
+    /// 初始化服务（由 App.axaml.cs 调用）
     /// </summary>
-    public void InitializeNotificationService(INotificationService notificationService)
+    public void InitializeServices(INotificationService notificationService, IDialogService dialogService)
     {
         _notificationService = notificationService;
         _notificationService.NotificationRequested += OnNotificationRequested;
@@ -87,7 +87,7 @@ public partial class MainWindow : Window
             if (File.Exists(settingsPath))
             {
                 var json = File.ReadAllText(settingsPath);
-                var settings = JsonSerializer.Deserialize(json, AppJsonContext.Default.AppSettings);
+                var settings = JsonSerializer.Deserialize(json, AppJsonContext.Default.AppConfig);
                 if (settings != null)
                 {
                     _isDarkMode = settings.IsDarkMode;
@@ -107,19 +107,19 @@ public partial class MainWindow : Window
         {
             var settingsPath = PathUtil.SettingsPath;
 
-            AppSettings settings;
+            AppConfig settings;
             if (File.Exists(settingsPath))
             {
                 var json = File.ReadAllText(settingsPath);
-                settings = JsonSerializer.Deserialize(json, AppJsonContext.Default.AppSettings) ?? new AppSettings();
+                settings = JsonSerializer.Deserialize(json, AppJsonContext.Default.AppConfig) ?? new AppConfig();
             }
             else
             {
-                settings = new AppSettings();
+                settings = new AppConfig();
             }
 
             settings.IsDarkMode = _isDarkMode;
-            File.WriteAllText(settingsPath, JsonSerializer.Serialize(settings, AppJsonContext.Default.AppSettings));
+            File.WriteAllText(settingsPath, JsonSerializer.Serialize(settings, AppJsonContext.Default.AppConfig));
         }
         catch { }
     }

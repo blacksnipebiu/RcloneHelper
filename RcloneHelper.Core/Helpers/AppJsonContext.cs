@@ -9,7 +9,7 @@ namespace RcloneHelper.Helpers;
 /// </summary>
 [JsonSerializable(typeof(List<MountConfig>))]
 [JsonSerializable(typeof(MountConfig))]
-[JsonSerializable(typeof(AppSettings))]
+[JsonSerializable(typeof(AppConfig))]
 [JsonSourceGenerationOptions(WriteIndented = true)]
 public partial class AppJsonContext : JsonSerializerContext
 {
