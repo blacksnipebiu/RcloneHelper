@@ -8,6 +8,9 @@ namespace RcloneHelper.Core.Windows;
 
 public partial class MainWindowViewModel : ObservableObject
 {
+    private readonly ISystemService _systemService;
+    private bool _hasInitialized;
+
     [ObservableProperty]
     private bool _isHomeSelected = true;
 
@@ -33,32 +36,32 @@ public partial class MainWindowViewModel : ObservableObject
         HomePageViewModel = homePageViewModel;
         RcloneConfigPageViewModel = rcloneConfigPageViewModel;
         SettingsPageViewModel = settingsPageViewModel;
+        _systemService = systemService;
 
         CurrentPage = HomePageViewModel;
-        _ = CheckDependenciesAndMountAsync(systemService);
     }
 
-    private async Task CheckDependenciesAndMountAsync(ISystemService systemService)
+    [RelayCommand]
+    private async Task WindowOpened()
     {
-        await Task.Delay(500);
+        // 只执行一次
+        if (_hasInitialized) return;
+        _hasInitialized = true;
 
         // 检查 FUSE 依赖
-        var fuseDependency = systemService.GetFuseDependency();
+        var fuseDependency = _systemService.GetFuseDependency();
         if (fuseDependency?.NeedsInstallation == true)
         {
-            // 强制导航到设置页面
-            NavigateSettings();
+            // 强制导航到 Rclone 管理界面
+            NavigateRclone();
             return;
         }
 
         // 刷新挂载状态
         HomePageViewModel.RefreshMountStatus();
 
-        if (SettingsPageViewModel.AutoMountOnStart)
-        {
-            await Task.Delay(500);
-            await HomePageViewModel.AutoMountAllAsync();
-        }
+        // 自动挂载所有配置了"启动时自动挂载"的存储
+        await HomePageViewModel.AutoMountConfiguredAsync();
     }
 
     [RelayCommand]

@@ -19,4 +19,9 @@ public class AppConfig
     /// 是否使用深色模式
     /// </summary>
     public bool IsDarkMode { get; set; } = true;
+
+    /// <summary>
+    /// 开机启动时是否静默启动（最小化到托盘）
+    /// </summary>
+    public bool StartSilently { get; set; } = false;
 }

@@ -12,98 +12,80 @@
     <Grid RowDefinitions="Auto,*">
         <!-- 标题栏 -->
         <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" Padding="15">
-            <TextBlock Text="配置" FontSize="20" FontWeight="Bold" 
+            <TextBlock Text="配置" FontSize="20" FontWeight="Bold"
                        Foreground="{DynamicResource ForegroundBrush}" VerticalAlignment="Center" />
         </Border>
 
         <!-- 配置内容 -->
         <ScrollViewer Grid.Row="1" Margin="20,0,0,0">
-        <StackPanel Spacing="20">
-            <TextBlock Text="系统设置" FontWeight="Bold" FontSize="16" 
-                       Foreground="{DynamicResource ForegroundBrush}" />
+            <StackPanel Spacing="20">
+                <TextBlock Text="系统设置" FontWeight="Bold" FontSize="16"
+                           Foreground="{DynamicResource ForegroundBrush}" />
 
-            <Border Background="{DynamicResource CardBrush}" Padding="15" CornerRadius="5">
-                <StackPanel Spacing="15">
-                    <CheckBox Content="开机启动" IsChecked="{Binding AutoStartEnabled}"
-                              Foreground="{DynamicResource ForegroundBrush}" />
-                    <CheckBox Content="启动时自动挂载所有存储" IsChecked="{Binding AutoMountOnStart}"
-                              Foreground="{DynamicResource ForegroundBrush}" />
-                </StackPanel>
-            </Border>
-            
-            <TextBlock Text="rclone 设置" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"
-                       Foreground="{DynamicResource ForegroundBrush}" />
-
-            <Border Background="{DynamicResource CardBrush}" Padding="15" CornerRadius="5">
-                <StackPanel Spacing="10">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <TextBox Width="400" Text="{Binding RclonePath}" 
-                                 Watermark="rclone 可执行文件路径，留空使用自动查找"
-                                 Foreground="{DynamicResource ForegroundBrush}" 
-                                 Background="{DynamicResource InputBackgroundBrush}" />
-                        <Button x:Name="SelectRclonePathButton" Content="选择..."
-                                Background="{DynamicResource ButtonBrush}"
-                                Foreground="{DynamicResource ButtonForegroundBrush}" />
+                <Border Background="{DynamicResource CardBrush}" Padding="15" CornerRadius="5">
+                    <StackPanel Spacing="15">
+                        <CheckBox Content="开机启动" IsChecked="{Binding AutoStartEnabled}"
+                                  Foreground="{DynamicResource ForegroundBrush}" />
+                        <CheckBox Content="静默启动" IsChecked="{Binding StartSilently}"
+                                  Foreground="{DynamicResource ForegroundBrush}"
+                                  IsEnabled="{Binding AutoStartEnabled}" />
+                        <TextBlock Text="启用后，开机启动时程序将最小化到系统托盘"
+                                   Foreground="{DynamicResource ForegroundMutedBrush}" FontSize="12"
+                                   IsVisible="{Binding AutoStartEnabled}" />
                     </StackPanel>
-                    <TextBlock Text="指定 rclone 可执行文件的完整路径。如果留空，程序将自动在 PATH、Program Files 和应用程序目录中查找。"
-                               Foreground="{DynamicResource ForegroundMutedBrush}" FontSize="12" TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
+                </Border>
 
-            <TextBlock Text="系统依赖" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"
-                       Foreground="{DynamicResource ForegroundBrush}" />
+                <TextBlock Text="数据存储" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"
+                           Foreground="{DynamicResource ForegroundBrush}" />
 
-            <Border Background="{DynamicResource CardBrush}" Padding="15" CornerRadius="5">
-                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,10">
-                    <!-- 图标 -->
-                    <TextBlock Grid.Column="0" Text="{Binding FuseDependency.Icon}" FontSize="32" 
-                               VerticalAlignment="Center" Margin="0,0,15,0" />
-                    
-                    <!-- 名称和描述 -->
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                        <TextBlock Text="{Binding FuseDependency.Name}" FontWeight="Bold" FontSize="16"
+                <Border Background="{DynamicResource CardBrush}" Padding="15" CornerRadius="5">
+                    <StackPanel Spacing="10">
+                        <!-- 程序数据目录 -->
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <TextBlock Grid.Column="0" Text="程序数据："
+                                       Foreground="{DynamicResource ForegroundMutedBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock Grid.Column="1" Text="{Binding AppDataPath}"
+                                       Foreground="{DynamicResource ForegroundBrush}"
+                                       VerticalAlignment="Center"
+                                       TextWrapping="Wrap" />
+                            <Button Grid.Column="2" Content="打开"
+                                    Command="{Binding OpenAppDataFolderCommand}"
+                                    Padding="10,5" Margin="10,0,0,0"
+                                    Background="{DynamicResource ButtonBrush}"
+                                    Foreground="{DynamicResource ButtonForegroundBrush}" />
+                        </Grid>
+
+                        <!-- 日志文件 -->
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <TextBlock Grid.Column="0" Text="日志文件："
+                                       Foreground="{DynamicResource ForegroundMutedBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock Grid.Column="1" Text="{Binding LogPath}"
+                                       Foreground="{DynamicResource ForegroundBrush}"
+                                       VerticalAlignment="Center"
+                                       TextWrapping="Wrap" />
+                            <Button Grid.Column="2" Content="打开"
+                                    Command="{Binding OpenLogFolderCommand}"
+                                    Padding="10,5" Margin="10,0,0,0"
+                                    Background="{DynamicResource ButtonBrush}"
+                                    Foreground="{DynamicResource ButtonForegroundBrush}" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="关于" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"
+                           Foreground="{DynamicResource ForegroundBrush}" />
+
+                <Border Background="{DynamicResource CardBrush}" Padding="15" CornerRadius="5" Margin="0,0,0,20">
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="Rclone Helper v1.0.0"
                                    Foreground="{DynamicResource ForegroundBrush}" />
-                        <TextBlock Text="{Binding FuseDependency.Description}"
-                                   Foreground="{DynamicResource ForegroundMutedBrush}" FontSize="12" />
-                        
-                        <!-- 状态指示器 -->
-                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-                            <Ellipse Width="10" Height="10" VerticalAlignment="Center"
-                                     Fill="{DynamicResource SuccessBrush}"
-                                     IsVisible="{Binding FuseDependency.IsInstalled}" />
-                            <Ellipse Width="10" Height="10" VerticalAlignment="Center"
-                                     Fill="{DynamicResource ErrorBrush}"
-                                     IsVisible="{Binding FuseDependency.NeedsInstallation}" />
-                            <TextBlock Text="{Binding FuseDependency.Status}" VerticalAlignment="Center" FontSize="12"
-                                       Foreground="{DynamicResource ForegroundMutedBrush}" />
-                        </StackPanel>
+                        <TextBlock Text="网络存储挂载管理工具"
+                                   Foreground="{DynamicResource ForegroundMutedBrush}" />
                     </StackPanel>
-                    
-                    <!-- 操作按钮 -->
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                        <Button Content="安装" Command="{Binding OpenInstallUrlCommand}"
-                                Background="{DynamicResource AccentBrush}"
-                                Foreground="{DynamicResource AccentForegroundBrush}"
-                                IsVisible="{Binding FuseDependency.NeedsInstallation}" />
-                        <Button Content="刷新" Command="{Binding RefreshDependenciesCommand}"
-                                Background="{DynamicResource ButtonBrush}"
-                                Foreground="{DynamicResource ButtonForegroundBrush}" />
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <TextBlock Text="关于" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"
-                       Foreground="{DynamicResource ForegroundBrush}" />
-
-            <Border Background="{DynamicResource CardBrush}" Padding="15" CornerRadius="5" Margin="0,0,0,20">
-                <StackPanel Spacing="5">
-                    <TextBlock Text="Rclone Helper v1.0.0" 
-                               Foreground="{DynamicResource ForegroundBrush}" />
-                    <TextBlock Text="网络存储挂载管理工具" 
-                               Foreground="{DynamicResource ForegroundMutedBrush}" />
-                </StackPanel>
-            </Border>
-        </StackPanel>
+                </Border>
+            </StackPanel>
         </ScrollViewer>
     </Grid>
 </UserControl>

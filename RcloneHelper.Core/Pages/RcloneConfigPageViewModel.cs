@@ -6,8 +6,10 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using RcloneHelper.Helpers;
+using RcloneHelper.Models;
 using RcloneHelper.Services;
 using RcloneHelper.Services.Abstractions;
 
@@ -16,7 +18,9 @@ namespace RcloneHelper.Core.Pages;
 public partial class RcloneConfigPageViewModel : ObservableObject
 {
     private readonly ISystemService _systemService;
-    private readonly string _rclonePath;
+    private readonly INotificationService _notificationService;
+    private readonly IConfigService _configService;
+    private bool _isInitializing = true;
 
     [ObservableProperty]
     private string _rcloneVersion = "正在获取...";
@@ -39,20 +43,50 @@ public partial class RcloneConfigPageViewModel : ObservableObject
     [ObservableProperty]
     private RemoteConfig? _selectedRemote;
 
-    public RcloneConfigPageViewModel(ISystemService systemService)
+    [ObservableProperty]
+    private string _customRclonePath = "";
+
+    [ObservableProperty]
+    private SystemDependency? _fuseDependency;
+
+    public RcloneConfigPageViewModel(
+        ISystemService systemService,
+        INotificationService notificationService,
+        IConfigService configService)
     {
         _systemService = systemService;
-        _rclonePath = PathUtil.GetConfiguredRclonePath();
+        _notificationService = notificationService;
+        _configService = configService;
+
+        LoadSettings();
+        CheckDependencies();
         LoadRcloneInfo();
+        _isInitializing = false;
     }
 
-    private void LoadRcloneInfo()
+    private string GetRclonePath()
+    {
+        var configuredPath = _configService.Current.RclonePath;
+        if (!string.IsNullOrEmpty(configuredPath) && File.Exists(configuredPath))
+            return configuredPath;
+
+        // 默认路径：程序目录或 PATH
+        var appDir = AppDomain.CurrentDomain.BaseDirectory;
+        var localPath = Path.Combine(appDir, "rclone.exe");
+        if (File.Exists(localPath))
+            return localPath;
+
+        return "rclone"; // 依赖 PATH
+    }
+
+private void LoadRcloneInfo()
     {
         try
         {
-            if (File.Exists(_rclonePath))
+            var rclonePath = GetRclonePath();
+            if (File.Exists(rclonePath))
             {
-                var versionInfo = GetFileVersion(_rclonePath);
+                var versionInfo = GetFileVersion(rclonePath);
                 RcloneVersion = $"v{versionInfo}";
             }
             else
@@ -281,13 +315,13 @@ public partial class RcloneConfigPageViewModel : ObservableObject
 
         try
         {
-            var remoteName = SelectedRemote.Name;
+var remoteName = SelectedRemote.Name;
 
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = _rclonePath,
+                    FileName = GetRclonePath(),
                     Arguments = $"config delete \"{remoteName}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -307,7 +341,7 @@ public partial class RcloneConfigPageViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+[RelayCommand]
     private void UnmountSelected()
     {
         if (SelectedRemote == null || !SelectedRemote.IsMounted || SelectedRemote.ProcessId == 0)
@@ -324,6 +358,53 @@ public partial class RcloneConfigPageViewModel : ObservableObject
         {
         }
     }
+
+#region 设置和依赖
+
+    partial void OnCustomRclonePathChanged(string value)
+    {
+        if (_isInitializing) return;
+        _configService.Update(c => c.RclonePath = CustomRclonePath);
+    }
+
+    private void LoadSettings()
+    {
+        CustomRclonePath = _configService.Current.RclonePath;
+    }
+
+    private void CheckDependencies()
+    {
+        FuseDependency = _systemService.GetFuseDependency();
+    }
+
+    [RelayCommand]
+    private void OpenInstallUrl()
+    {
+        if (FuseDependency == null || string.IsNullOrEmpty(FuseDependency.InstallUrl))
+            return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = FuseDependency.InstallUrl,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            _notificationService.ShowError($"无法打开链接: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void RefreshDependencies()
+    {
+        CheckDependencies();
+        _notificationService.ShowSuccess("依赖状态已刷新");
+    }
+
+    #endregion
 }
 
 public partial class RemoteConfig : ObservableObject

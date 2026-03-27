@@ -42,12 +42,19 @@ public partial class HomePageViewModel : ObservableObject
         _mountService = mountService;
         _notificationService = notificationService;
         _dialogService = dialogService;
-        LoadMountsFromService();
+LoadMountsFromService();
     }
 
-    public async Task AutoMountAllAsync()
+    /// <summary>
+    /// 自动挂载所有配置了"启动时自动挂载"的存储
+    /// </summary>
+    public async Task AutoMountConfiguredAsync()
     {
-        await MountAllAsync();
+        var toMount = AllMounts.Where(m => m.AutoMountOnStart && !m.IsMounted).ToList();
+        foreach (var mount in toMount)
+        {
+            await MountAsync(mount);
+        }
     }
 
     /// <summary>

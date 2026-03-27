@@ -1,17 +1,15 @@
 using System;
 using System.Collections.ObjectModel;
-using System.IO;
-using System.Text.Json;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Platform;
 using Avalonia.Threading;
-using Microsoft.Extensions.DependencyInjection;
-using RcloneHelper.Helpers;
-using RcloneHelper.Models;
+using RcloneHelper.Core.Windows;
 using RcloneHelper.Services;
 using RcloneHelper.Services.Abstractions;
 using Path = Avalonia.Controls.Shapes.Path;
@@ -25,149 +23,151 @@ public partial class MainWindow : Window
     private StreamGeometry? _sunGeometry;
     private StreamGeometry? _moonGeometry;
     private bool _isDarkMode = true;
-    private INotificationService? _notificationService;
+    private readonly INotificationService _notificationService;
+    private readonly IConfigService _configService;
+    private TrayIcon? _trayIcon;
 
-    /// <summary>
-    /// Toast 列表，支持叠加显示
-    /// </summary>
+    public bool IsAutoStartLaunch { get; }
     public ObservableCollection<ToastItem> Toasts { get; } = new();
 
-    public MainWindow()
+    public MainWindow(
+        MainWindowViewModel viewModel,
+        INotificationService notificationService,
+        IDialogService dialogService,
+        IConfigService configService)
     {
         InitializeComponent();
+
+        IsAutoStartLaunch = Environment.GetCommandLineArgs().Contains("--autostart");
+        DataContext = viewModel;
+
+        _notificationService = notificationService;
+        _configService = configService;
+        _notificationService.NotificationRequested += (msg, type, duration) =>
+            Dispatcher.UIThread.Post(() => ShowToast(msg, type, duration));
+
         _maximizeGeometry = Application.Current?.FindResource("IconMaximize") as StreamGeometry;
         _restoreGeometry = Application.Current?.FindResource("IconRestore") as StreamGeometry;
         _sunGeometry = Application.Current?.FindResource("IconSun") as StreamGeometry;
         _moonGeometry = Application.Current?.FindResource("IconMoon") as StreamGeometry;
 
-        // 绑定 Toast 列表
         ToastList.ItemsSource = Toasts;
 
-        // 加载主题设置
-        LoadThemeSetting();
+        // 初始化对话框按钮
+        DialogConfirmButton.Click += (_, _) => HideDialog(true);
+        DialogCancelButton.Click += (_, _) => HideDialog(false);
+
+        var config = _configService.Current;
+        _isDarkMode = config.IsDarkMode;
+        ThemeService.ApplyTheme(_isDarkMode);
+        UpdateThemeIcon();
+
+        InitializeTrayIcon();
+
+        if (IsAutoStartLaunch && config.StartSilently)
+        {
+            ShowInTaskbar = false;
+            WindowState = WindowState.Minimized;
+        }
     }
 
     /// <summary>
-    /// 初始化服务（由 App.axaml.cs 调用）
+    /// 显示确认对话框
     /// </summary>
-    public void InitializeServices(INotificationService notificationService, IDialogService dialogService)
+    public Task<bool> ShowConfirmationAsync(string message)
     {
-        _notificationService = notificationService;
-        _notificationService.NotificationRequested += OnNotificationRequested;
+        var tcs = new TaskCompletionSource<bool>();
+        Dispatcher.UIThread.Post(() =>
+        {
+            DialogMessage.Text = message;
+            DialogOverlay.IsVisible = true;
+            _dialogTcs = tcs;
+        });
+        return tcs.Task;
     }
 
-    private void OnNotificationRequested(string message, NotificationType type, int duration)
+    private TaskCompletionSource<bool>? _dialogTcs;
+
+    private void HideDialog(bool result)
     {
-        Dispatcher.UIThread.Post(() => ShowToast(message, type, duration));
+        _dialogTcs?.TrySetResult(result);
+        _dialogTcs = null;
+        DialogOverlay.IsVisible = false;
+    }
+
+    public void RestoreNormalMode()
+    {
+        WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        ShowInTaskbar = true;
+    }
+
+    private void InitializeTrayIcon()
+    {
+        var iconStream = AssetLoader.Open(new Uri("avares://RcloneHelper/Assets/app.ico"));
+        _trayIcon = new TrayIcon
+        {
+            Icon = new WindowIcon(iconStream),
+            ToolTipText = "Rclone Helper",
+            IsVisible = true
+        };
+
+        var menu = new NativeMenu();
+        var showItem = new NativeMenuItem("显示窗口");
+        showItem.Click += (_, _) => ShowWindow();
+        menu.Add(showItem);
+
+        var exitItem = new NativeMenuItem("退出");
+        exitItem.Click += (_, _) => { _trayIcon?.Dispose(); System.Environment.Exit(0); };
+        menu.Add(exitItem);
+
+        _trayIcon.Menu = menu;
+        _trayIcon.Clicked += (_, _) => ShowWindow();
+    }
+
+    private void ShowWindow()
+    {
+        RestoreNormalMode();
+        Show();
+        WindowState = WindowState.Normal;
+        Activate();
     }
 
     private void ShowToast(string message, NotificationType type, int duration)
     {
-        // 添加新的 Toast
-        var toast = new ToastItem(message, type.ToString().ToLower(), OnToastExpired);
-        Toasts.Insert(0, toast); // 插入到顶部，实现从下往上堆叠
-
-        // 启动计时器
+        var toast = new ToastItem(message, type.ToString().ToLower(), t => Dispatcher.UIThread.Post(() => Toasts.Remove(t)));
+        Toasts.Insert(0, toast);
         toast.StartTimer(duration);
-    }
-
-    private void OnToastExpired(ToastItem toast)
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            Toasts.Remove(toast);
-        });
-    }
-
-    private void LoadThemeSetting()
-    {
-        try
-        {
-            var settingsPath = PathUtil.SettingsPath;
-            if (File.Exists(settingsPath))
-            {
-                var json = File.ReadAllText(settingsPath);
-                var settings = JsonSerializer.Deserialize(json, AppJsonContext.Default.AppConfig);
-                if (settings != null)
-                {
-                    _isDarkMode = settings.IsDarkMode;
-                }
-            }
-        }
-        catch { }
-
-        // 应用加载的主题
-        ThemeService.ApplyTheme(_isDarkMode);
-        UpdateThemeIcon();
-    }
-
-    private void SaveThemeSetting()
-    {
-        try
-        {
-            var settingsPath = PathUtil.SettingsPath;
-
-            AppConfig settings;
-            if (File.Exists(settingsPath))
-            {
-                var json = File.ReadAllText(settingsPath);
-                settings = JsonSerializer.Deserialize(json, AppJsonContext.Default.AppConfig) ?? new AppConfig();
-            }
-            else
-            {
-                settings = new AppConfig();
-            }
-
-            settings.IsDarkMode = _isDarkMode;
-            File.WriteAllText(settingsPath, JsonSerializer.Serialize(settings, AppJsonContext.Default.AppConfig));
-        }
-        catch { }
     }
 
     private void UpdateThemeIcon()
     {
-        if (ThemeIcon != null)
-        {
-            ThemeIcon.Data = _isDarkMode ? _sunGeometry : _moonGeometry;
-        }
+        ThemeIcon.Data = _isDarkMode ? _sunGeometry : _moonGeometry;
     }
 
-    private void TitleBar_PointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        BeginMoveDrag(e);
-    }
-
-    private void MinimizeButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        WindowState = WindowState.Minimized;
-    }
+    private void TitleBar_PointerPressed(object? sender, PointerPressedEventArgs e) => BeginMoveDrag(e);
+    private void MinimizeButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
     private void MaximizeButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (WindowState == WindowState.Maximized)
         {
             WindowState = WindowState.Normal;
-            if (MaximizeIcon?.Child is Path path)
-                path.Data = _maximizeGeometry;
+            if (MaximizeIcon.Child is Path path) path.Data = _maximizeGeometry;
         }
         else
         {
             WindowState = WindowState.Maximized;
-            if (MaximizeIcon?.Child is Path path)
-                path.Data = _restoreGeometry;
+            if (MaximizeIcon.Child is Path path) path.Data = _restoreGeometry;
         }
     }
 
-    private void CloseButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        Close();
-    }
+    private void CloseButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => Close();
 
     private void ThemeToggle_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         _isDarkMode = !_isDarkMode;
         ThemeService.ApplyTheme(_isDarkMode);
         UpdateThemeIcon();
-        SaveThemeSetting();
+        _configService.Update(c => c.IsDarkMode = _isDarkMode);
     }
 }

@@ -17,16 +17,21 @@ namespace RcloneHelper.Services.Implementations;
 [SupportedOSPlatform("windows")]
 public class WindowsSystemService : ISystemService
 {
-    private const string AutoStartRegistryKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string AppName = "RcloneHelper";
+    private const string TaskName = "RcloneHelper_AutoStart";
+    private readonly ILoggerService _logger;
+
+    public WindowsSystemService(ILoggerService logger)
+    {
+        _logger = logger;
+    }
 
     #region ISystemService 实现
 
     public PlatformType Platform => PlatformType.Windows;
 
-    public string AppExecutablePath => System.Reflection.Assembly.GetExecutingAssembly().Location;
+    public string AppExecutablePath => Environment.ProcessPath ?? "";
 
-    #region 开机自启
+    #region 开机自启（使用 Windows 任务计划程序）
 
     public bool IsAutoStartEnabled
     {
@@ -34,8 +39,21 @@ public class WindowsSystemService : ISystemService
         {
             try
             {
-                using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(AutoStartRegistryKey, false);
-                return key?.GetValue(AppName) != null;
+                using var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "schtasks",
+                        Arguments = $"/Query /TN \"{TaskName}\"",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+                process.Start();
+                process.WaitForExit(5000);
+                return process.ExitCode == 0;
             }
             catch
             {
@@ -48,22 +66,118 @@ public class WindowsSystemService : ISystemService
     {
         try
         {
-            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(AutoStartRegistryKey, true);
-            if (key == null) return false;
+            var exePath = AppExecutablePath;
+            _logger.Info($"[AutoStart] 设置开机启动: {enabled}, 程序路径: {exePath}");
 
             if (enabled)
             {
-                key.SetValue(AppName, $"\"{AppExecutablePath}\"");
+                return CreateAutoStartTask(exePath);
             }
             else
             {
-                key.DeleteValue(AppName, false);
+                return DeleteAutoStartTask();
             }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"[AutoStart] 设置开机启动失败: {ex.Message}");
+            return false;
+        }
+    }
+
+private bool CreateAutoStartTask(string exePath)
+    {
+        try
+        {
+            // 先删除已存在的任务
+            DeleteAutoStartTaskSilent();
+
+            // 添加 --autostart 参数，用于区分开机自启启动和用户手动启动
+            var arguments = $"/Create /TN \"{TaskName}\" /TR \"\\\"{exePath}\\\" --autostart\" /SC ONLOGON /F";
+            _logger.Debug($"[AutoStart] 执行命令: schtasks {arguments}");
+
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "schtasks",
+                    Arguments = arguments,
+                    UseShellExecute = true,  // 必须为 true 才能使用 runas
+                    Verb = "runas",          // 触发 UAC 提权
+                    WindowStyle = ProcessWindowStyle.Hidden
+                }
+            };
+            process.Start();
+            process.WaitForExit(30000);  // UAC 对话框可能需要用户响应
+
+            if (process.ExitCode == 0)
+            {
+                _logger.Info("[AutoStart] 开机启动任务创建成功");
+                return true;
+            }
+            else
+            {
+                _logger.Error($"[AutoStart] 开机启动任务创建失败, 退出码: {process.ExitCode}");
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"[AutoStart] 创建开机启动任务异常: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool DeleteAutoStartTask()
+    {
+        try
+        {
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "schtasks",
+                    Arguments = $"/Delete /TN \"{TaskName}\" /F",
+                    UseShellExecute = true,
+                    Verb = "runas",
+                    WindowStyle = ProcessWindowStyle.Hidden
+                }
+            };
+            process.Start();
+            process.WaitForExit(30000);
+
+            _logger.Info("[AutoStart] 开机启动任务已删除");
             return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"[AutoStart] 删除开机启动任务异常: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void DeleteAutoStartTaskSilent()
+    {
+        try
+        {
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "schtasks",
+                    Arguments = $"/Delete /TN \"{TaskName}\" /F",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            process.Start();
+            process.WaitForExit(5000);
         }
         catch
         {
-            return false;
+            // 忽略错误
         }
     }
 

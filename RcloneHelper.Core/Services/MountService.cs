@@ -20,17 +20,32 @@ public class MountService
 {
     private readonly ISystemService _systemService;
     private readonly ILoggerService _logger;
-    private readonly string _rclonePath;
+    private readonly IConfigService _configService;
     private readonly Dictionary<string, Process> _mountProcesses = new();
 
     public ObservableCollection<MountInfo> Mounts { get; } = new();
 
-    public MountService(ISystemService systemService, ILoggerService logger)
+    public MountService(ISystemService systemService, ILoggerService logger, IConfigService configService)
     {
         _systemService = systemService;
         _logger = logger;
-        _rclonePath = PathUtil.GetConfiguredRclonePath();
+        _configService = configService;
         LoadMounts();
+    }
+
+    private string GetRclonePath()
+    {
+        var configuredPath = _configService.Current.RclonePath;
+        if (!string.IsNullOrEmpty(configuredPath) && File.Exists(configuredPath))
+            return configuredPath;
+
+        // 默认路径：程序目录或 PATH
+        var appDir = AppDomain.CurrentDomain.BaseDirectory;
+        var localPath = Path.Combine(appDir, "rclone.exe");
+        if (File.Exists(localPath))
+            return localPath;
+
+        return "rclone"; // 依赖 PATH
     }
 
     #region 文件操作
@@ -150,7 +165,7 @@ public class MountService
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = _rclonePath,
+                    FileName = GetRclonePath(),
                     Arguments = $"config delete {name}",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -275,6 +290,10 @@ public class MountService
     /// 执行挂载操作
     /// </summary>
     /// <param name="name">挂载名称</param>
+/// <summary>
+    /// 执行挂载操作
+    /// </summary>
+    /// <param name="name">挂载名称</param>
     /// <param name="oldName">旧名称（如果名称变更需要删除旧的 rclone 配置）</param>
     /// <returns>挂载是否成功</returns>
     public async Task<bool> MountAsync(string name, string? oldName = null)
@@ -297,29 +316,14 @@ public class MountService
             // 创建 rclone 配置（如果名称变更，删除旧的配置）
             await CreateRcloneConfigAsync(mount, oldName);
 
-            // 执行挂载
-            // 注意：remote path 必须以冒号结尾，rclone 才能识别为远程引用
-            var remotePath = string.IsNullOrWhiteSpace(mount.RemotePath)
-                ? $"{mount.Name}:"
-                : $"{mount.Name}:{mount.RemotePath}";
-
             // 构建挂载参数
-            var mountArgs = $"mount {remotePath} {mount.LocalDrive} --vfs-cache-mode writes";
-            
-            if (mount.UseNetworkMode)
-            {
-                mountArgs += $" --network-mode --volname \\\\rclone\\{mount.Name}";
-            }
-            else
-            {
-                mountArgs += $" --volname \"{mount.Name}\"";
-            }
+            var mountArgs = BuildMountArgs(mount);
 
             var mountProcess = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = _rclonePath,
+                    FileName = GetRclonePath(),
                     Arguments = mountArgs,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -337,32 +341,43 @@ public class MountService
                     mount.Status = "未挂载";
                     _logger.Warning($"挂载意外退出: {name}");
                 }
-                _mountProcesses.Remove(name);  // 使用挂载时的原始名称
+                _mountProcesses.Remove(name);
                 mount.MountProcess = null;
             };
 
             mountProcess.Start();
             mount.MountProcess = mountProcess;
-            _mountProcesses[name] = mountProcess;  // 使用原始名称作为 key
-            _logger.Debug($"执行命令: {_rclonePath} {mountArgs}");
+            _mountProcesses[name] = mountProcess;
+            _logger.Debug($"执行命令: {GetRclonePath()} {mountArgs}");
 
-            // 等待挂载完成
-            await Task.Delay(2000);
+            // 等待挂载完成：轮询检查挂载点是否可访问
+            var startTime = DateTime.UtcNow;
+            var timeout = TimeSpan.FromSeconds(30);
 
-            if (!mountProcess.HasExited)
+            while (DateTime.UtcNow - startTime < timeout)
             {
-                mount.IsMounted = true;
-                mount.Status = $"已挂载到 {mount.LocalDrive}";
-                _logger.Info($"挂载成功: {name} -> {mount.LocalDrive}");
-                return true;
+                if (mountProcess.HasExited)
+                {
+                    var error = await mountProcess.StandardError.ReadToEndAsync();
+                    mount.Status = "挂载失败";
+                    _logger.Error($"挂载失败: {name}, 进程已退出, 错误: {error}");
+                    throw new InvalidOperationException($"挂载失败: {error}");
+                }
+
+                if (IsMountPointAccessible(mount.LocalDrive))
+                {
+                    mount.IsMounted = true;
+                    mount.Status = $"已挂载到 {mount.LocalDrive}";
+                    _logger.Info($"挂载成功: {name} -> {mount.LocalDrive}, 耗时 {(DateTime.UtcNow - startTime).TotalSeconds:F1}s");
+                    return true;
+                }
+
+                await Task.Delay(200);
             }
-            else
-            {
-                var error = await mountProcess.StandardError.ReadToEndAsync();
-                mount.Status = "挂载失败";
-                _logger.Error($"挂载失败: {name}, 错误: {error}");
-                throw new InvalidOperationException($"挂载失败: {error}");
-            }
+
+            mount.Status = "挂载超时";
+            _logger.Error($"挂载超时: {name}, 挂载点 {mount.LocalDrive} 未能访问");
+            throw new InvalidOperationException($"挂载超时: 挂载点 {mount.LocalDrive} 在 {timeout.TotalSeconds} 秒内未能访问");
         }
         catch (Exception ex)
         {
@@ -370,6 +385,32 @@ public class MountService
             _logger.Error($"挂载异常: {name}, 错误: {ex.Message}");
             throw new InvalidOperationException($"挂载错误: {ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// 构建 rclone mount 命令参数
+    /// </summary>
+    private static string BuildMountArgs(MountInfo mount)
+    {
+        // remote path: name: 或 name:/path
+        var remotePath = string.IsNullOrWhiteSpace(mount.RemotePath)
+            ? $"{mount.Name}:"
+            : $"{mount.Name}:{mount.RemotePath}";
+
+        // 基础参数
+        var args = $"mount {remotePath} {mount.LocalDrive} --vfs-cache-mode writes";
+
+        // 网络模式
+        if (mount.UseNetworkMode)
+        {
+            args += $" --network-mode --volname \\\\rclone\\{mount.Name}";
+        }
+        else
+        {
+            args += $" --volname \"{mount.Name}\"";
+        }
+
+        return args;
     }
 
     /// <summary>
@@ -405,7 +446,7 @@ public class MountService
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = _rclonePath,
+                    FileName = GetRclonePath(),
                     Arguments = $"umount {mount.LocalDrive}",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -416,7 +457,7 @@ public class MountService
 
             unmountProcess.Start();
             unmountProcess.WaitForExit(5000);
-            _logger.Debug($"执行命令: {_rclonePath} umount {mount.LocalDrive}");
+            _logger.Debug($"执行命令: {GetRclonePath()} umount {mount.LocalDrive}");
 
             mount.IsMounted = false;
             mount.Status = "未挂载";
@@ -478,59 +519,7 @@ public class MountService
         }
     }
 
-    /// <summary>
-    /// 异步卸载所有已挂载的配置
-    /// </summary>
-    public Task UnmountAllAsync()
-    {
-        return Task.Run(UnmountAll);
-    }
-
-    #endregion
-
-    #region 状态检查
-
-    /// <summary>
-    /// 检查挂载状态（通过查询 rclone 进程）
-    /// </summary>
-    /// <returns>当前活跃的挂载列表</returns>
-    public List<ActiveMountInfo> GetActiveMounts()
-    {
-        var mounts = new List<ActiveMountInfo>();
-
-        try
-        {
-            // 使用 ISystemService 查找 rclone 进程
-            var processes = _systemService.FindProcesses("rclone");
-
-            foreach (var process in processes)
-            {
-                // 解析命令行获取挂载信息
-                var mountMatch = Regex.Match(
-                    process.CommandLine, 
-                    @"mount\s+(\S+)\s+(\S+)", 
-                    RegexOptions.IgnoreCase);
-
-                if (mountMatch.Success)
-                {
-                    mounts.Add(new ActiveMountInfo
-                    {
-                        Name = mountMatch.Groups[1].Value,
-                        LocalDrive = mountMatch.Groups[2].Value,
-                        ProcessId = process.ProcessId
-                    });
-                }
-            }
-        }
-        catch
-        {
-            // 忽略错误
-        }
-
-        return mounts;
-    }
-
-    /// <summary>
+/// <summary>
     /// 刷新所有挂载的状态
     /// </summary>
     public void RefreshMountStatus()
@@ -539,8 +528,8 @@ public class MountService
 
         foreach (var mount in Mounts)
         {
-            var active = activeMounts.FirstOrDefault(a =>
-                a.Name.StartsWith(mount.Name) || a.Name == mount.Name);
+            // remote 名称已经去掉了冒号，直接匹配配置名称
+            var active = activeMounts.FirstOrDefault(a => a.Name == mount.Name);
 
             if (active != null)
             {
@@ -571,6 +560,54 @@ public class MountService
         }
     }
 
+    #endregion
+
+    #region 状态检查
+
+/// <summary>
+    /// 检查挂载状态（通过查询 rclone 进程）
+    /// </summary>
+    /// <returns>当前活跃的挂载列表</returns>
+    public List<ActiveMountInfo> GetActiveMounts()
+    {
+        var mounts = new List<ActiveMountInfo>();
+
+        try
+        {
+            foreach (var process in _systemService.FindProcesses("rclone"))
+            {
+                var cmdLine = process.CommandLine;
+                
+                // 使用正则提取: mount 之后的两个非选项参数 (remote 和 mountpoint)
+                // 格式: rclone [opts] mount [opts] remote:path X:
+                var match = Regex.Match(cmdLine, 
+                    @"\bmount\b\s+(?:-[^\s]+\s+)*(\S+)\s+(?:-[^\s]+\s+)*([A-Za-z]:)", 
+                    RegexOptions.IgnoreCase);
+                
+                if (!match.Success)
+                    continue;
+                
+                var remote = match.Groups[1].Value;
+                var mountpoint = match.Groups[2].Value;
+                
+                // 去掉 remote 的冒号部分 (myremote: → myremote, myremote:/path → myremote)
+                var colonIndex = remote.IndexOf(':');
+                if (colonIndex > 0)
+                    remote = remote.Substring(0, colonIndex);
+                
+                mounts.Add(new ActiveMountInfo
+                {
+                    Name = remote,
+                    LocalDrive = mountpoint,
+                    ProcessId = process.ProcessId
+                });
+            }
+        }
+        catch { }
+
+        return mounts;
+    }
+
     /// <summary>
     /// 获取当前平台类型
     /// </summary>
@@ -578,7 +615,31 @@ public class MountService
 
     #endregion
 
-    #region 私有方法
+#region 私有方法
+
+    /// <summary>
+    /// 检查挂载点是否可访问（用于判断挂载是否成功）
+    /// </summary>
+    /// <param name="mountPoint">挂载点路径（如 "Z:" 或 "/mnt/rclone"）</param>
+    /// <returns>是否可访问</returns>
+    private bool IsMountPointAccessible(string mountPoint)
+    {
+        if (string.IsNullOrWhiteSpace(mountPoint))
+            return false;
+
+        try
+        {
+            // Windows: 检查盘符是否存在且可访问
+            // Linux/macOS: 检查目录是否存在且可访问
+            var info = new DirectoryInfo(mountPoint);
+            return info.Exists;
+        }
+        catch
+        {
+            // 目录不存在或无法访问
+            return false;
+        }
+    }
 
     private async Task CreateRcloneConfigAsync(MountInfo mount, string? oldName = null)
     {
@@ -604,7 +665,7 @@ public class MountService
         {
             StartInfo = new ProcessStartInfo
             {
-                FileName = _rclonePath,
+                FileName = GetRclonePath(),
                 Arguments = configArgs,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -633,7 +694,7 @@ public class MountService
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = _rclonePath,
+                    FileName = GetRclonePath(),
                     Arguments = $"config delete {name}",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,

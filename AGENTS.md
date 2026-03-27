@@ -170,3 +170,8 @@ Selected via `RuntimeInformation.IsOSPlatform()` in `ServiceCollectionExtensions
 - All ViewModels are Singleton (desktop app state persistence)
 - Config files stored in `%APPDATA%\RcloneHelper\`
 - rclone must be installed and in PATH, or in application directory
+
+## File Formatting
+
+- **Line Endings**: Use CRLF (Windows style) for all source files
+- **Encoding**: UTF-8 with BOM for better compatibility

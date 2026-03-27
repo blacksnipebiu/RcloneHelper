@@ -1,11 +1,8 @@
 using System;
 using System.Diagnostics;
-using System.IO;
-using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RcloneHelper.Helpers;
-using RcloneHelper.Models;
 using RcloneHelper.Services.Abstractions;
 
 namespace RcloneHelper.Core.Pages;
@@ -14,27 +11,36 @@ public partial class SettingsPageViewModel : ObservableObject
 {
     private readonly ISystemService _systemService;
     private readonly INotificationService _notificationService;
+    private readonly IConfigService _configService;
     private bool _isInitializing = true;
 
     [ObservableProperty]
     private bool _autoStartEnabled;
 
     [ObservableProperty]
-    private bool _autoMountOnStart;
-    
-    [ObservableProperty]
-    private string _rclonePath = "";
+    private bool _startSilently;
 
-    [ObservableProperty]
-    private SystemDependency? _fuseDependency;
+    /// <summary>
+    /// 程序数据存放路径
+    /// </summary>
+    public string AppDataPath => PathUtil.AppDataDir;
 
-    public SettingsPageViewModel(ISystemService systemService, INotificationService notificationService)
+    /// <summary>
+    /// 日志文件路径
+    /// </summary>
+    public string LogPath => PathUtil.LogPath;
+
+    public SettingsPageViewModel(
+        ISystemService systemService,
+        INotificationService notificationService,
+        IConfigService configService)
     {
         _systemService = systemService;
         _notificationService = notificationService;
-        LoadSettings();
+        _configService = configService;
+
         CheckAutoStartStatus();
-        CheckDependencies();
+        LoadSettings();
         _isInitializing = false;
     }
 
@@ -54,53 +60,11 @@ public partial class SettingsPageViewModel : ObservableObject
         }
     }
 
-    partial void OnAutoMountOnStartChanged(bool value)
+    partial void OnStartSilentlyChanged(bool value)
     {
         if (_isInitializing) return;
-        SaveSettingsToFile();
-    }
-    
-    partial void OnRclonePathChanged(string value)
-    {
-        if (_isInitializing) return;
-        SaveSettingsToFile();
-    }
 
-    private void LoadSettings()
-    {
-        var settingsPath = PathUtil.SettingsPath;
-        if (File.Exists(settingsPath))
-        {
-            try
-            {
-                var json = File.ReadAllText(settingsPath);
-                var settings = JsonSerializer.Deserialize(json, AppJsonContext.Default.AppConfig);
-                if (settings != null)
-                {
-                    AutoMountOnStart = settings.AutoMountOnStart;
-                    RclonePath = settings.RclonePath;
-                }
-            }
-            catch { }
-        }
-    }
-
-    private void SaveSettingsToFile()
-    {
-        try
-        {
-            var settings = new AppConfig
-            {
-                AutoMountOnStart = AutoMountOnStart,
-                RclonePath = RclonePath
-            };
-            var json = JsonSerializer.Serialize(settings, AppJsonContext.Default.AppConfig);
-            File.WriteAllText(PathUtil.SettingsPath, json);
-        }
-        catch (Exception ex)
-        {
-            _notificationService.ShowError($"保存设置失败: {ex.Message}");
-        }
+        _configService.Update(c => c.StartSilently = value);
     }
 
     private void CheckAutoStartStatus()
@@ -108,35 +72,50 @@ public partial class SettingsPageViewModel : ObservableObject
         AutoStartEnabled = _systemService.IsAutoStartEnabled;
     }
 
-    private void CheckDependencies()
+    private void LoadSettings()
     {
-        FuseDependency = _systemService.GetFuseDependency();
+        var config = _configService.Current;
+        StartSilently = config.StartSilently;
     }
 
     [RelayCommand]
-    private void OpenInstallUrl()
+    private void OpenAppDataFolder()
     {
-        if (FuseDependency == null || string.IsNullOrEmpty(FuseDependency.InstallUrl))
-            return;
-
         try
         {
-            Process.Start(new ProcessStartInfo
+            if (Directory.Exists(AppDataPath))
             {
-                FileName = FuseDependency.InstallUrl,
-                UseShellExecute = true
-            });
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = AppDataPath,
+                    UseShellExecute = true
+                });
+            }
         }
         catch (Exception ex)
         {
-            _notificationService.ShowError($"无法打开链接: {ex.Message}");
+            _notificationService.ShowError($"无法打开文件夹: {ex.Message}");
         }
     }
 
     [RelayCommand]
-    private void RefreshDependencies()
+    private void OpenLogFolder()
     {
-        CheckDependencies();
-        _notificationService.ShowSuccess("依赖状态已刷新");
+        try
+        {
+            var logDir = Path.GetDirectoryName(LogPath);
+            if (!string.IsNullOrEmpty(logDir) && Directory.Exists(logDir))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = logDir,
+                    UseShellExecute = true
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _notificationService.ShowError($"无法打开文件夹: {ex.Message}");
+        }
     }
 }
