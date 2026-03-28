@@ -33,7 +33,11 @@ public class FileLoggerService : ILoggerService
                 if (File.GetCreationTime(file) < cutoff)
                     File.Delete(file);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // 清理旧日志失败不影响主功能，输出到控制台作为诊断信息
+            Console.Error.WriteLine($"[FileLoggerService] 清理旧日志失败: {ex.Message}");
+        }
     }
 
     public void Log(LogLevel level, string message)
@@ -41,8 +45,16 @@ public class FileLoggerService : ILoggerService
         var logLine = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [{level}] {message}";
         lock (_lock)
         {
-            try { File.AppendAllText(LogPathForDate(DateTime.Now), logLine + Environment.NewLine, Encoding.UTF8); }
-            catch { }
+            try
+            {
+                File.AppendAllText(LogPathForDate(DateTime.Now), logLine + Environment.NewLine, Encoding.UTF8);
+            }
+            catch (Exception ex)
+            {
+                // 写入日志文件失败，fallback 到控制台输出
+                Console.Error.WriteLine($"[FileLoggerService] 写日志失败，fallback 输出: {logLine}");
+                Console.Error.WriteLine($"[FileLoggerService] 错误详情: {ex.Message}");
+            }
         }
     }
 

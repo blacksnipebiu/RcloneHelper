@@ -113,7 +113,7 @@ public class MacOSSystemService : ISystemService
             // 使用 mount 命令获取已挂载的文件系统
             var mountOutput = ExecuteCommand("mount");
             var lines = mountOutput.Split('\n');
-            
+
             foreach (var line in lines)
             {
                 // macOS mount 输出格式: /dev/diskX on /Volumes/Name (type, ...)
@@ -163,7 +163,7 @@ public class MacOSSystemService : ISystemService
                 if (spaceIndex > 0 && int.TryParse(trimmed.Substring(0, spaceIndex), out var pid))
                 {
                     var commandLine = trimmed.Substring(spaceIndex + 1).Trim();
-                    
+
                     processes.Add(new ProcessInfo
                     {
                         ProcessId = pid,
@@ -261,11 +261,11 @@ public class MacOSSystemService : ISystemService
             var plistDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 LaunchAgentsDir);
-            
+
             Directory.CreateDirectory(plistDir);
-            
+
             var plistPath = Path.Combine(plistDir, $"{AppName}.plist");
-            
+
             // 创建 LaunchAgent plist 文件
             var plistContent = $@"<?xml version=""1.0"" encoding=""UTF-8""?>
 <!DOCTYPE plist PUBLIC ""-//Apple//DTD PLIST 1.0//EN"" ""http://www.apple.com/DTDs/PropertyList-1.0.dtd"">
@@ -283,12 +283,12 @@ public class MacOSSystemService : ISystemService
     <false/>
 </dict>
 </plist>";
-            
+
             File.WriteAllText(plistPath, plistContent);
-            
+
             // 加载 LaunchAgent
             ExecuteCommand($"launchctl load {plistPath}");
-            
+
             return true;
         }
         catch
@@ -302,14 +302,14 @@ public class MacOSSystemService : ISystemService
         try
         {
             var plistPath = GetLaunchAgentPlistPath();
-            
+
             if (File.Exists(plistPath))
             {
                 // 卸载 LaunchAgent
                 ExecuteCommand($"launchctl unload {plistPath}");
                 File.Delete(plistPath);
             }
-            
+
             return true;
         }
         catch

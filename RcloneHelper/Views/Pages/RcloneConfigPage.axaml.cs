@@ -10,7 +10,7 @@ public partial class RcloneConfigPage : UserControl
     public RcloneConfigPage()
     {
         InitializeComponent();
-        
+
         // 每次页面显示时自动刷新
         this.AttachedToVisualTree += (_, _) =>
         {
@@ -19,7 +19,7 @@ public partial class RcloneConfigPage : UserControl
                 vm.RefreshConfigCommand.Execute(null);
             }
         };
-        
+
         // 选择 rclone 路径按钮
         var button = this.FindControl<Button>("SelectRclonePathButton");
         if (button != null)
@@ -27,15 +27,15 @@ public partial class RcloneConfigPage : UserControl
             button.Click += OnSelectRclonePathButtonClick;
         }
     }
-    
+
     private async void OnSelectRclonePathButtonClick(object? sender, RoutedEventArgs e)
     {
         var viewModel = this.DataContext as RcloneConfigPageViewModel;
         if (viewModel == null) return;
-        
+
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel == null) return;
-        
+
         var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "选择 rclone 可执行文件",
@@ -46,7 +46,7 @@ public partial class RcloneConfigPage : UserControl
                 new FilePickerFileType("所有文件") { Patterns = new[] { "*" } }
             }
         });
-        
+
         if (files.Count > 0)
         {
             viewModel.CustomRclonePath = files[0].Path.LocalPath;

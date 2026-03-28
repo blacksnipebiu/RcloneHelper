@@ -64,10 +64,16 @@ public partial class MainWindow : Window
 
         InitializeTrayIcon();
 
+        // 阻止窗口关闭，改为最小化到托盘
+        Closing += (_, e) =>
+        {
+            e.Cancel = true;
+            HideToTray();
+        };
+
         if (IsAutoStartLaunch && config.StartSilently)
         {
-            ShowInTaskbar = false;
-            WindowState = WindowState.Minimized;
+            HideToTray();
         }
     }
 
@@ -95,12 +101,6 @@ public partial class MainWindow : Window
         DialogOverlay.IsVisible = false;
     }
 
-    public void RestoreNormalMode()
-    {
-        WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        ShowInTaskbar = true;
-    }
-
     private void InitializeTrayIcon()
     {
         var iconStream = AssetLoader.Open(new Uri("avares://RcloneHelper/Assets/app.ico"));
@@ -126,10 +126,19 @@ public partial class MainWindow : Window
 
     private void ShowWindow()
     {
-        RestoreNormalMode();
+        ShowInTaskbar = true;
         Show();
         WindowState = WindowState.Normal;
         Activate();
+    }
+
+    /// <summary>
+    /// 隐藏窗口到托盘
+    /// </summary>
+    private void HideToTray()
+    {
+        ShowInTaskbar = false;
+        Hide();
     }
 
     private void ShowToast(string message, NotificationType type, int duration)
@@ -161,7 +170,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void CloseButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => Close();
+    private void CloseButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => HideToTray();
 
     private void ThemeToggle_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {

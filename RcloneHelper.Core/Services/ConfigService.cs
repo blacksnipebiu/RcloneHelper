@@ -12,10 +12,12 @@ namespace RcloneHelper.Services;
 /// </summary>
 public class ConfigService : IConfigService
 {
+    private readonly ILoggerService _logger;
     private AppConfig _current;
 
-    public ConfigService()
+    public ConfigService(ILoggerService logger)
     {
+        _logger = logger;
         _current = LoadFromFile();
     }
 
@@ -58,10 +60,13 @@ public class ConfigService : IConfigService
             if (File.Exists(settingsPath))
             {
                 var json = File.ReadAllText(settingsPath);
-                return JsonSerializer.Deserialize(json, AppJsonContext.Default.AppConfig) ?? new AppConfig();
+                return JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.Warning($"加载配置文件失败，使用默认配置: {ex.Message}");
+        }
 
         return new AppConfig();
     }
@@ -71,9 +76,12 @@ public class ConfigService : IConfigService
         try
         {
             var settingsPath = PathUtil.SettingsPath;
-            var json = JsonSerializer.Serialize(config, AppJsonContext.Default.AppConfig);
+            var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(settingsPath, json);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.Error($"保存配置文件失败: {ex.Message}");
+        }
     }
 }

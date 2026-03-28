@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using RcloneHelper.Helpers;
 using RcloneHelper.Models;
@@ -21,15 +22,28 @@ public class MountService
     private readonly ISystemService _systemService;
     private readonly ILoggerService _logger;
     private readonly IConfigService _configService;
+    private readonly INotificationService _notificationService;
     private readonly Dictionary<string, Process> _mountProcesses = new();
+    private readonly SynchronizationContext? _syncContext;
+
+    /// <summary>
+    /// 挂载列表变化事件（新增或删除时触发）
+    /// </summary>
+    public event Action? MountsChanged;
 
     public ObservableCollection<MountInfo> Mounts { get; } = new();
 
-    public MountService(ISystemService systemService, ILoggerService logger, IConfigService configService)
+    public MountService(
+        ISystemService systemService,
+        ILoggerService logger,
+        IConfigService configService,
+        INotificationService notificationService)
     {
         _systemService = systemService;
         _logger = logger;
         _configService = configService;
+        _notificationService = notificationService;
+        _syncContext = SynchronizationContext.Current; // 捕获 UI 线程的同步上下文
         LoadMounts();
     }
 
@@ -64,7 +78,7 @@ public class MountService
         try
         {
             var json = File.ReadAllText(configPath);
-            var configs = JsonSerializer.Deserialize(json, AppJsonContext.Default.ListMountConfig);
+            var configs = JsonSerializer.Deserialize<List<MountConfig>>(json);
             if (configs == null)
                 return;
 
@@ -88,7 +102,7 @@ public class MountService
         try
         {
             var configs = Mounts.Select(m => m.ToConfig()).ToList();
-            var json = JsonSerializer.Serialize(configs, AppJsonContext.Default.ListMountConfig);
+            var json = JsonSerializer.Serialize(configs, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(PathUtil.MountsConfigPath, json);
         }
         catch (Exception ex)
@@ -124,6 +138,7 @@ public class MountService
         mount.Status = "未挂载";
         Mounts.Add(mount);
         SaveMounts();
+        MountsChanged?.Invoke();
     }
 
     /// <summary>
@@ -225,6 +240,7 @@ public class MountService
 
         Mounts.Remove(mount);
         SaveMounts();
+        MountsChanged?.Invoke();
     }
 
     /// <summary>
@@ -246,11 +262,11 @@ public class MountService
         // 先检查已配置的挂载点
         var usedMountPoints = Mounts.Select(m => m.LocalDrive.ToUpper()).ToHashSet();
         var systemMountPoint = _systemService.GetAvailableMountPoint();
-        
+
         // 如果系统建议的挂载点未被使用，直接返回
         if (!usedMountPoints.Contains(systemMountPoint.ToUpper()))
             return systemMountPoint;
-        
+
         // 否则基于平台生成新的挂载点
         return GenerateAvailableMountPoint(usedMountPoints);
     }
@@ -287,10 +303,6 @@ public class MountService
     #region 挂载操作
 
     /// <summary>
-    /// 执行挂载操作
-    /// </summary>
-    /// <param name="name">挂载名称</param>
-/// <summary>
     /// 执行挂载操作
     /// </summary>
     /// <param name="name">挂载名称</param>
@@ -334,16 +346,27 @@ public class MountService
             };
 
             mountProcess.Exited += (s, e) =>
-            {
-                if (mount.IsMounted)
-                {
-                    mount.IsMounted = false;
-                    mount.Status = "未挂载";
-                    _logger.Warning($"挂载意外退出: {name}");
-                }
-                _mountProcesses.Remove(name);
-                mount.MountProcess = null;
-            };
+                        {
+                            // 在 UI 线程上执行状态更新和通知
+                            void HandleExit()
+                            {
+                                if (mount.IsMounted)
+                                {
+                                    mount.IsMounted = false;
+                                    mount.Status = "未挂载";
+                                    _logger.Warning($"挂载意外退出: {name}");
+                                    _notificationService.ShowWarning($"挂载 \"{name}\" 已意外断开");
+                                }
+                                _mountProcesses.Remove(name);
+                                mount.MountProcess = null;
+                            }
+
+                            // 如果有同步上下文，在 UI 线程执行；否则直接执行
+                            if (_syncContext != null)
+                                _syncContext.Post(_ => HandleExit(), null);
+                            else
+                                HandleExit();
+                        };
 
             mountProcess.Start();
             mount.MountProcess = mountProcess;
@@ -519,7 +542,7 @@ public class MountService
         }
     }
 
-/// <summary>
+    /// <summary>
     /// 刷新所有挂载的状态
     /// </summary>
     public void RefreshMountStatus()
@@ -564,7 +587,7 @@ public class MountService
 
     #region 状态检查
 
-/// <summary>
+    /// <summary>
     /// 检查挂载状态（通过查询 rclone 进程）
     /// </summary>
     /// <returns>当前活跃的挂载列表</returns>
@@ -577,24 +600,24 @@ public class MountService
             foreach (var process in _systemService.FindProcesses("rclone"))
             {
                 var cmdLine = process.CommandLine;
-                
+
                 // 使用正则提取: mount 之后的两个非选项参数 (remote 和 mountpoint)
                 // 格式: rclone [opts] mount [opts] remote:path X:
-                var match = Regex.Match(cmdLine, 
-                    @"\bmount\b\s+(?:-[^\s]+\s+)*(\S+)\s+(?:-[^\s]+\s+)*([A-Za-z]:)", 
+                var match = Regex.Match(cmdLine,
+                    @"\bmount\b\s+(?:-[^\s]+\s+)*(\S+)\s+(?:-[^\s]+\s+)*([A-Za-z]:)",
                     RegexOptions.IgnoreCase);
-                
+
                 if (!match.Success)
                     continue;
-                
+
                 var remote = match.Groups[1].Value;
                 var mountpoint = match.Groups[2].Value;
-                
+
                 // 去掉 remote 的冒号部分 (myremote: → myremote, myremote:/path → myremote)
                 var colonIndex = remote.IndexOf(':');
                 if (colonIndex > 0)
                     remote = remote.Substring(0, colonIndex);
-                
+
                 mounts.Add(new ActiveMountInfo
                 {
                     Name = remote,
@@ -615,7 +638,7 @@ public class MountService
 
     #endregion
 
-#region 私有方法
+    #region 私有方法
 
     /// <summary>
     /// 检查挂载点是否可访问（用于判断挂载是否成功）

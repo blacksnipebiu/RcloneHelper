@@ -70,7 +70,7 @@ public class LinuxSystemService : ISystemService
     public string GetAvailableMountPoint()
     {
         var baseDir = DefaultMountBase;
-        
+
         // 检查用户是否有权限在 /mnt 下创建目录
         // 如果没有，使用 ~/mnt
         if (!HasWritePermission(baseDir))
@@ -166,7 +166,7 @@ public class LinuxSystemService : ISystemService
                         continue;
 
                     var cmdline = File.ReadAllText(cmdlinePath).Replace('\0', ' ').Trim();
-                    
+
                     // 检查是否是目标进程
                     if (!cmdline.Contains(processName, StringComparison.OrdinalIgnoreCase))
                         continue;
@@ -274,9 +274,9 @@ public class LinuxSystemService : ISystemService
             var autostartDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 AutostartDir);
-            
+
             Directory.CreateDirectory(autostartDir);
-            
+
             var desktopPath = Path.Combine(autostartDir, $"{AppName}.desktop");
             var desktopContent = $@"[Desktop Entry]
 Type=Application
@@ -289,10 +289,10 @@ Categories=Network;FileTransfer;
 X-GNOME-Autostart-enabled=true
 ";
             File.WriteAllText(desktopPath, desktopContent);
-            
+
             // 设置可执行权限
             ExecuteCommand($"chmod +x {desktopPath}");
-            
+
             return true;
         }
         catch

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -11,7 +11,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- 裁剪根程序集：保留主项目和 Core 项目（包含 ViewModels） -->
     <TrimmerRootAssembly Include="RcloneHelper" />
+    <TrimmerRootAssembly Include="RcloneHelper.Core" />
   </ItemGroup>
 
   <ItemGroup>

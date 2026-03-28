@@ -79,7 +79,7 @@ public partial class RcloneConfigPageViewModel : ObservableObject
         return "rclone"; // 依赖 PATH
     }
 
-private void LoadRcloneInfo()
+    private void LoadRcloneInfo()
     {
         try
         {
@@ -315,7 +315,7 @@ private void LoadRcloneInfo()
 
         try
         {
-var remoteName = SelectedRemote.Name;
+            var remoteName = SelectedRemote.Name;
 
             var process = new Process
             {
@@ -341,7 +341,7 @@ var remoteName = SelectedRemote.Name;
         }
     }
 
-[RelayCommand]
+    [RelayCommand]
     private void UnmountSelected()
     {
         if (SelectedRemote == null || !SelectedRemote.IsMounted || SelectedRemote.ProcessId == 0)
@@ -359,7 +359,7 @@ var remoteName = SelectedRemote.Name;
         }
     }
 
-#region 设置和依赖
+    #region 设置和依赖
 
     partial void OnCustomRclonePathChanged(string value)
     {

@@ -71,6 +71,29 @@
                                     Background="{DynamicResource ButtonBrush}"
                                     Foreground="{DynamicResource ButtonForegroundBrush}" />
                         </Grid>
+
+                        <!-- 分隔线 -->
+                        <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,5" />
+
+                        <!-- 配置导入导出 -->
+                        <TextBlock Text="配置备份与恢复"
+                                   Foreground="{DynamicResource ForegroundMutedBrush}"
+                                   FontSize="12" Margin="0,5,0,0" />
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button Content="导出配置"
+                                    Command="{Binding ExportConfigCommand}"
+                                    Padding="15,8"
+                                    Background="{DynamicResource AccentBrush}"
+                                    Foreground="{DynamicResource AccentForegroundBrush}" />
+                            <Button Content="导入配置"
+                                    Command="{Binding ImportConfigCommand}"
+                                    Padding="15,8"
+                                    Background="{DynamicResource ButtonBrush}"
+                                    Foreground="{DynamicResource ButtonForegroundBrush}" />
+                        </StackPanel>
+                        <TextBlock Text="导出会将所有挂载配置保存为 JSON 文件&#x0a;导入会从配置目录读取备份文件（跳过已存在的挂载）"
+                                   Foreground="{DynamicResource ForegroundMutedBrush}"
+                                   FontSize="11" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
 

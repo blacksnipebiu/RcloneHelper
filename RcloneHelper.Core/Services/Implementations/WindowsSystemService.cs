@@ -85,7 +85,7 @@ public class WindowsSystemService : ISystemService
         }
     }
 
-private bool CreateAutoStartTask(string exePath)
+    private bool CreateAutoStartTask(string exePath)
     {
         try
         {
@@ -188,7 +188,7 @@ private bool CreateAutoStartTask(string exePath)
     public string GetAvailableMountPoint()
     {
         var usedDrives = GetUsedMountPoints();
-        
+
         // 从 Z: 到 D: 查找可用盘符
         for (char c = 'Z'; c >= 'D'; c--)
         {
@@ -196,7 +196,7 @@ private bool CreateAutoStartTask(string exePath)
             if (!usedDrives.Contains(drive))
                 return drive;
         }
-        
+
         return "Z:";
     }
 
@@ -255,7 +255,7 @@ private bool CreateAutoStartTask(string exePath)
                 {
                     var processId = Convert.ToInt32(obj["ProcessId"]);
                     var commandLine = obj["CommandLine"]?.ToString() ?? "";
-                    
+
                     DateTime startTime = DateTime.MinValue;
                     try
                     {

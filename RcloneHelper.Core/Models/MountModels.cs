@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using RcloneHelper.Helpers;
 using System;
 using System.Diagnostics;
 
@@ -16,12 +17,19 @@ public class MountConfig
     public string Vendor { get; set; } = "other";
     public bool AutoMountOnStart { get; set; } = true;
     public bool UseNetworkMode { get; set; } = false;
-    
-    // 新增：URL 组件字段（用于 WebDAV 等类型）
+
+    // URL 组件字段
     public bool UseHttps { get; set; } = true;
     public string Host { get; set; } = "";
     public int Port { get; set; } = 443;
     public string Path { get; set; } = "";
+
+    // S3 专用字段
+    public string AccessKeyId { get; set; } = "";
+    public string SecretAccessKey { get; set; } = "";
+    public string Region { get; set; } = "";
+    public string Endpoint { get; set; } = "";
+    public string S3Provider { get; set; } = "AWS";
 }
 
 public partial class MountInfo : ObservableObject
@@ -37,6 +45,10 @@ public partial class MountInfo : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWebDavType))]
+    [NotifyPropertyChangedFor(nameof(IsFtpType))]
+    [NotifyPropertyChangedFor(nameof(IsSftpType))]
+    [NotifyPropertyChangedFor(nameof(IsS3Type))]
+    [NotifyPropertyChangedFor(nameof(UseUrlInput))]
     private string _type = "webdav";
 
     [ObservableProperty]
@@ -59,28 +71,75 @@ public partial class MountInfo : ObservableObject
 
     [ObservableProperty]
     private bool _autoMountOnStart = true;
-    
+
     [ObservableProperty]
     private bool _useNetworkMode = false;
-    
-    // 新增：URL 组件字段（用于 WebDAV 等类型）
+
+    // URL 组件字段
     [ObservableProperty]
     private bool _useHttps = true;
-    
+
     [ObservableProperty]
     private string _host = "";
-    
+
     [ObservableProperty]
     private int _port = 443;
-    
+
     [ObservableProperty]
     private string _path = "";
-    
+
+    // S3 专用字段
+    [ObservableProperty]
+    private string _accessKeyId = "";
+
+    [ObservableProperty]
+    private string _secretAccessKey = "";
+
+    [ObservableProperty]
+    private string _region = "";
+
+    [ObservableProperty]
+    private string _endpoint = "";
+
+    [ObservableProperty]
+    private string _s3Provider = "AWS";
+
     /// <summary>
-    /// 计算属性：是否为 WebDAV 类型（用于 UI 显示控制）
+    /// 计算属性：是否为 WebDAV 类型
     /// </summary>
     public bool IsWebDavType => Type == "webdav";
-    
+
+    /// <summary>
+    /// 计算属性：是否为 FTP 类型
+    /// </summary>
+    public bool IsFtpType => Type == "ftp";
+
+    /// <summary>
+    /// 计算属性：是否为 SFTP 类型
+    /// </summary>
+    public bool IsSftpType => Type == "sftp";
+
+    /// <summary>
+    /// 计算属性：是否为 S3 类型
+    /// </summary>
+    public bool IsS3Type => Type == "s3";
+
+    /// <summary>
+    /// 计算属性：是否使用 URL 输入（非 WebDAV/FTP/SFTP 类型）
+    /// </summary>
+    public bool UseUrlInput => !IsWebDavType && !IsFtpType && !IsSftpType;
+
+    /// <summary>
+    /// 获取默认端口
+    /// </summary>
+    public int DefaultPort => Type switch
+    {
+        "webdav" => UseHttps ? 443 : 80,
+        "ftp" => 21,
+        "sftp" => 22,
+        _ => 443
+    };
+
     /// <summary>
     /// 计算完整 URL
     /// </summary>
@@ -88,13 +147,23 @@ public partial class MountInfo : ObservableObject
     {
         get
         {
-            if (!IsWebDavType || string.IsNullOrWhiteSpace(Host))
-                return Url;
-            
-            var protocol = UseHttps ? "https" : "http";
-            var portPart = (UseHttps && Port == 443) || (!UseHttps && Port == 80) ? "" : $":{Port}";
-            var pathPart = string.IsNullOrWhiteSpace(Path) ? "" : (Path.StartsWith("/") ? Path : $"/{Path}");
-            return $"{protocol}://{Host}{portPart}{pathPart}";
+            if (IsWebDavType && !string.IsNullOrWhiteSpace(Host))
+            {
+                var protocol = UseHttps ? "https" : "http";
+                var portPart = (UseHttps && Port == 443) || (!UseHttps && Port == 80) ? "" : $":{Port}";
+                var pathPart = string.IsNullOrWhiteSpace(Path) ? "" : (Path.StartsWith("/") ? Path : $"/{Path}");
+                return $"{protocol}://{Host}{portPart}{pathPart}";
+            }
+
+            if ((IsFtpType || IsSftpType) && !string.IsNullOrWhiteSpace(Host))
+            {
+                var protocol = IsFtpType ? "ftp" : "sftp";
+                var portPart = Port == DefaultPort ? "" : $":{Port}";
+                var pathPart = string.IsNullOrWhiteSpace(Path) ? "" : (Path.StartsWith("/") ? Path : $"/{Path}");
+                return $"{protocol}://{Host}{portPart}{pathPart}";
+            }
+
+            return Url;
         }
     }
 
@@ -110,7 +179,8 @@ public partial class MountInfo : ObservableObject
             Type = config.Type,
             Url = config.Url,
             User = config.User,
-            Password = config.Password,
+            // 解密密码（兼容未加密的旧数据）
+            Password = SecureStorageHelper.Decrypt(config.Password),
             Vendor = config.Vendor,
             AutoMountOnStart = config.AutoMountOnStart,
             UseNetworkMode = config.UseNetworkMode,
@@ -118,6 +188,12 @@ public partial class MountInfo : ObservableObject
             Host = config.Host,
             Port = config.Port,
             Path = config.Path,
+            // S3 字段
+            AccessKeyId = config.AccessKeyId,
+            SecretAccessKey = SecureStorageHelper.Decrypt(config.SecretAccessKey),
+            Region = config.Region,
+            Endpoint = config.Endpoint,
+            S3Provider = config.S3Provider,
             IsMounted = false,
             Status = "未挂载"
         };
@@ -131,16 +207,23 @@ public partial class MountInfo : ObservableObject
             RemotePath = RemotePath,
             LocalDrive = LocalDrive,
             Type = Type,
-            Url = IsWebDavType ? ComputedUrl : Url,
+            Url = IsWebDavType || IsFtpType || IsSftpType ? ComputedUrl : Url,
             User = User,
-            Password = Password,
+            // 加密密码
+            Password = SecureStorageHelper.Encrypt(Password),
             Vendor = Vendor,
             AutoMountOnStart = AutoMountOnStart,
             UseNetworkMode = UseNetworkMode,
             UseHttps = UseHttps,
             Host = Host,
             Port = Port,
-            Path = Path
+            Path = Path,
+            // S3 字段
+            AccessKeyId = AccessKeyId,
+            SecretAccessKey = SecureStorageHelper.Encrypt(SecretAccessKey),
+            Region = Region,
+            Endpoint = Endpoint,
+            S3Provider = S3Provider
         };
     }
 }

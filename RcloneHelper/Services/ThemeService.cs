@@ -17,7 +17,7 @@ public static class ThemeService
 
         // 更新自定义资源
         var resources = Application.Current.Resources;
-        
+
         if (isDark)
         {
             // 深色主题

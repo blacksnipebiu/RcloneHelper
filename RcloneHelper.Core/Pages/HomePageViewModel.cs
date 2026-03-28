@@ -42,7 +42,17 @@ public partial class HomePageViewModel : ObservableObject
         _mountService = mountService;
         _notificationService = notificationService;
         _dialogService = dialogService;
-LoadMountsFromService();
+
+        // 订阅挂载列表变化事件
+        _mountService.MountsChanged += OnMountsChanged;
+
+        LoadMountsFromService();
+    }
+
+    private void OnMountsChanged()
+    {
+        // 当 MountService 的挂载列表变化时（如导入配置），刷新 UI
+        LoadMountsFromService();
     }
 
     /// <summary>
@@ -167,7 +177,13 @@ LoadMountsFromService();
             UseHttps = mount.UseHttps,
             Host = mount.Host,
             Port = mount.Port,
-            Path = mount.Path
+            Path = mount.Path,
+            // S3 字段
+            AccessKeyId = mount.AccessKeyId,
+            SecretAccessKey = mount.SecretAccessKey,
+            Region = mount.Region,
+            Endpoint = mount.Endpoint,
+            S3Provider = mount.S3Provider
         };
         IsEditing = true;
     }
@@ -205,12 +221,38 @@ LoadMountsFromService();
             return;
         }
 
-        // WebDAV 类型验证 Host，其他类型验证 Url
+        // 根据类型验证必填字段
         if (EditingMount.IsWebDavType)
         {
             if (string.IsNullOrWhiteSpace(EditingMount.Host))
             {
                 _notificationService.ShowWarning("请输入主机地址");
+                return;
+            }
+        }
+        else if (EditingMount.IsFtpType || EditingMount.IsSftpType)
+        {
+            if (string.IsNullOrWhiteSpace(EditingMount.Host))
+            {
+                _notificationService.ShowWarning("请输入主机地址");
+                return;
+            }
+        }
+        else if (EditingMount.IsS3Type)
+        {
+            if (string.IsNullOrWhiteSpace(EditingMount.AccessKeyId))
+            {
+                _notificationService.ShowWarning("请输入 Access Key ID");
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(EditingMount.SecretAccessKey))
+            {
+                _notificationService.ShowWarning("请输入 Secret Access Key");
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(EditingMount.RemotePath))
+            {
+                _notificationService.ShowWarning("请输入 Bucket 名称");
                 return;
             }
         }
@@ -231,7 +273,7 @@ LoadMountsFromService();
                 // 保存原始名称（用于更新 rclone 配置）
                 var originalName = _editingOriginalMount.Name;
                 var wasMounted = _editingOriginalMount.IsMounted;
-                
+
                 // 如果名称被修改，需要检查新名称是否已被其他挂载使用
                 if (EditingMount.Name != originalName)
                 {
@@ -253,7 +295,7 @@ LoadMountsFromService();
                 _editingOriginalMount.RemotePath = EditingMount.RemotePath;
                 _editingOriginalMount.LocalDrive = EditingMount.LocalDrive;
                 _editingOriginalMount.Type = EditingMount.Type;
-                _editingOriginalMount.Url = EditingMount.IsWebDavType ? EditingMount.ComputedUrl : EditingMount.Url;
+                _editingOriginalMount.Url = EditingMount.ComputedUrl;
                 _editingOriginalMount.User = EditingMount.User;
                 _editingOriginalMount.Password = EditingMount.Password;
                 _editingOriginalMount.Vendor = EditingMount.Vendor;
@@ -263,9 +305,15 @@ LoadMountsFromService();
                 _editingOriginalMount.Host = EditingMount.Host;
                 _editingOriginalMount.Port = EditingMount.Port;
                 _editingOriginalMount.Path = EditingMount.Path;
-                
+                // S3 字段
+                _editingOriginalMount.AccessKeyId = EditingMount.AccessKeyId;
+                _editingOriginalMount.SecretAccessKey = EditingMount.SecretAccessKey;
+                _editingOriginalMount.Region = EditingMount.Region;
+                _editingOriginalMount.Endpoint = EditingMount.Endpoint;
+                _editingOriginalMount.S3Provider = EditingMount.S3Provider;
+
                 await _mountService.UpdateMountAsync(_editingOriginalMount, originalName);
-                
+
                 // 如果之前已挂载，重新挂载
                 if (wasMounted)
                 {
@@ -283,7 +331,7 @@ LoadMountsFromService();
                 {
                     _notificationService.ShowSuccess("挂载已保存");
                 }
-                
+
                 // 更新集合（名称可能变化导致需要重新分类）
                 UpdateMountCollections();
             }
@@ -302,7 +350,7 @@ LoadMountsFromService();
                     RemotePath = EditingMount.RemotePath,
                     LocalDrive = EditingMount.LocalDrive,
                     Type = EditingMount.Type,
-                    Url = EditingMount.IsWebDavType ? EditingMount.ComputedUrl : EditingMount.Url,
+                    Url = EditingMount.ComputedUrl,
                     User = EditingMount.User,
                     Password = EditingMount.Password,
                     Vendor = EditingMount.Vendor,
@@ -312,6 +360,12 @@ LoadMountsFromService();
                     Host = EditingMount.Host,
                     Port = EditingMount.Port,
                     Path = EditingMount.Path,
+                    // S3 字段
+                    AccessKeyId = EditingMount.AccessKeyId,
+                    SecretAccessKey = EditingMount.SecretAccessKey,
+                    Region = EditingMount.Region,
+                    Endpoint = EditingMount.Endpoint,
+                    S3Provider = EditingMount.S3Provider,
                     IsMounted = false,
                     Status = "未挂载"
                 };
