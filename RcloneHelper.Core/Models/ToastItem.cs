@@ -1,9 +1,8 @@
 using System;
 using System.Threading.Tasks;
-using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace RcloneHelper.Views.Windows;
+namespace RcloneHelper.Core.Models;
 
 /// <summary>
 /// Toast 通知项，支持进入和退出动画
@@ -30,24 +29,12 @@ public partial class ToastItem : ObservableObject
     [ObservableProperty]
     private double _offsetY = 30;
 
-    [ObservableProperty]
-    private IBrush _backgroundColor = new SolidColorBrush(Colors.DodgerBlue);
-
     public ToastItem(string message, string type, Action<ToastItem>? onExpired = null)
     {
         _message = message;
         _type = type;
         _onExpired = onExpired;
         _time = DateTime.Now.ToString("HH:mm:ss");
-
-        // 根据类型设置背景色
-        BackgroundColor = type.ToLower() switch
-        {
-            "success" => new SolidColorBrush(Color.FromRgb(46, 160, 67)),  // 绿色
-            "error" => new SolidColorBrush(Color.FromRgb(248, 81, 73)),    // 红色
-            "warning" => new SolidColorBrush(Color.FromRgb(210, 153, 34)), // 橙色
-            _ => new SolidColorBrush(Color.FromRgb(56, 139, 253))         // 蓝色
-        };
     }
 
     /// <summary>

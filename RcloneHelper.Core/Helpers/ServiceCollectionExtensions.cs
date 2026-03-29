@@ -48,7 +48,9 @@ public static class ServiceCollectionExtensions
                     sp.GetRequiredService<HomePageViewModel>(),
                     sp.GetRequiredService<RcloneConfigPageViewModel>(),
                     sp.GetRequiredService<SettingsPageViewModel>(),
-                    sp.GetRequiredService<ISystemService>()));
+                    sp.GetRequiredService<ISystemService>(),
+                    sp.GetRequiredService<INotificationService>(),
+                    sp.GetRequiredService<IConfigService>()));
         services.AddSingleton<RcloneConfigPageViewModel>(sp => new RcloneConfigPageViewModel(
                     sp.GetRequiredService<ISystemService>(),
                     sp.GetRequiredService<INotificationService>(),

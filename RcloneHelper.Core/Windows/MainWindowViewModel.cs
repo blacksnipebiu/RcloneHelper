@@ -1,6 +1,8 @@
+using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using RcloneHelper.Core.Models;
 using RcloneHelper.Core.Pages;
 using RcloneHelper.Services.Abstractions;
 
@@ -9,6 +11,8 @@ namespace RcloneHelper.Core.Windows;
 public partial class MainWindowViewModel : ObservableObject
 {
     private readonly ISystemService _systemService;
+    private readonly INotificationService _notificationService;
+    private readonly IConfigService _configService;
     private bool _hasInitialized;
 
     [ObservableProperty]
@@ -23,6 +27,14 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private object? _currentPage;
 
+    [ObservableProperty]
+    private bool _isDarkMode;
+
+    /// <summary>
+    /// Toast 通知集合
+    /// </summary>
+    public ObservableCollection<ToastItem> Toasts { get; } = new();
+
     public HomePageViewModel HomePageViewModel { get; }
     public RcloneConfigPageViewModel RcloneConfigPageViewModel { get; }
     public SettingsPageViewModel SettingsPageViewModel { get; }
@@ -31,14 +43,35 @@ public partial class MainWindowViewModel : ObservableObject
         HomePageViewModel homePageViewModel,
         RcloneConfigPageViewModel rcloneConfigPageViewModel,
         SettingsPageViewModel settingsPageViewModel,
-        ISystemService systemService)
+        ISystemService systemService,
+        INotificationService notificationService,
+        IConfigService configService)
     {
         HomePageViewModel = homePageViewModel;
         RcloneConfigPageViewModel = rcloneConfigPageViewModel;
         SettingsPageViewModel = settingsPageViewModel;
         _systemService = systemService;
+        _notificationService = notificationService;
+        _configService = configService;
 
         CurrentPage = HomePageViewModel;
+        IsDarkMode = configService.Current.IsDarkMode;
+
+        // 订阅通知事件
+        _notificationService.NotificationRequested += OnNotificationRequested;
+    }
+
+    /// <summary>
+    /// 处理通知请求
+    /// </summary>
+    private void OnNotificationRequested(string message, NotificationType type, int duration)
+    {
+        var toast = new ToastItem(message, type.ToString().ToLower(), t =>
+        {
+            Toasts.Remove(t);
+        });
+        Toasts.Insert(0, toast);
+        toast.StartTimer(duration);
     }
 
     [RelayCommand]
@@ -62,6 +95,13 @@ public partial class MainWindowViewModel : ObservableObject
 
         // 自动挂载所有配置了"启动时自动挂载"的存储
         await HomePageViewModel.AutoMountConfiguredAsync();
+    }
+
+    [RelayCommand]
+    private void ToggleTheme()
+    {
+        IsDarkMode = !IsDarkMode;
+        _configService.Update(c => c.IsDarkMode = IsDarkMode);
     }
 
     [RelayCommand]

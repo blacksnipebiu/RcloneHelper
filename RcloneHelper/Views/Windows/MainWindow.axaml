@@ -4,6 +4,8 @@
          xmlns:vmPages="using:RcloneHelper.Core.Pages"
          xmlns:views="using:RcloneHelper.Views.Windows"
          xmlns:pages="using:RcloneHelper.Views.Pages"
+         xmlns:models="using:RcloneHelper.Core.Models"
+         xmlns:converters="using:RcloneHelper.Converters"
          xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
          xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
          xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
@@ -18,6 +20,10 @@
          ExtendClientAreaToDecorationsHint="True"
          ExtendClientAreaChromeHints="NoChrome"
          Background="{DynamicResource BackgroundBrush}">
+
+    <Window.Resources>
+        <converters:ToastTypeToBrushConverter x:Key="ToastTypeToBrushConverter" />
+    </Window.Resources>
 
     <i:Interaction.Behaviors>
         <ai:EventTriggerBehavior EventName="Opened">
@@ -163,7 +169,7 @@
                         PointerPressed="TitleBar_PointerPressed">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <!-- Theme Toggle -->
-                        <Button Classes="titleBarButton" Click="ThemeToggle_Click" ToolTip.Tip="切换主题">
+                        <Button Classes="titleBarButton" Command="{Binding ToggleThemeCommand}" ToolTip.Tip="切换主题">
                             <Viewbox Width="14" Height="14">
                                 <Path x:Name="ThemeIcon" Fill="{DynamicResource TitleBarForegroundBrush}" Data="{DynamicResource IconSun}" />
                             </Viewbox>
@@ -195,15 +201,15 @@
                         <ContentControl Content="{Binding CurrentPage}" />
                         
                         <!-- Toast 容器 - 支持叠加显示 -->
-                        <ItemsControl x:Name="ToastList"
+                        <ItemsControl ItemsSource="{Binding Toasts}"
                                       VerticalAlignment="Bottom"
                                       HorizontalAlignment="Center"
                                       Margin="0,0,0,20"
                                       ZIndex="1000">
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="views:ToastItem">
+                                <DataTemplate x:DataType="models:ToastItem">
                                     <Border Classes="toastItem"
-                                            Background="{Binding BackgroundColor}"
+                                            Background="{Binding Type, Converter={StaticResource ToastTypeToBrushConverter}}"
                                             IsVisible="{Binding IsVisible}"
                                             Opacity="{Binding Opacity}"
                                             ClipToBounds="False">
