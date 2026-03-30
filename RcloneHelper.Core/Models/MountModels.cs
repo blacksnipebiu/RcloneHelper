@@ -51,6 +51,22 @@ public partial class MountInfo : ObservableObject
     [NotifyPropertyChangedFor(nameof(UseUrlInput))]
     private string _type = "webdav";
 
+    /// <summary>
+    /// 类型变更时自动更新默认端口
+    /// </summary>
+    partial void OnTypeChanged(string value)
+    {
+        // 根据类型设置默认端口
+        Port = value switch
+        {
+            "webdav" => UseHttps ? 443 : 80,
+            "ftp" => 21,
+            "sftp" => 22,
+            "smb" => 445,
+            _ => 443
+        };
+    }
+
     [ObservableProperty]
     private string _url = "";
 
@@ -78,6 +94,39 @@ public partial class MountInfo : ObservableObject
     // URL 组件字段
     [ObservableProperty]
     private bool _useHttps = true;
+
+    /// <summary>
+    /// 协议类型（用于 UI 绑定）
+    /// </summary>
+    public string Protocol
+    {
+        get => UseHttps ? "HTTPS" : "HTTP";
+        set
+        {
+            if (value == "HTTPS" && !UseHttps)
+            {
+                UseHttps = true;
+                // WebDAV 切换到 HTTPS 时更新端口
+                if (Type == "webdav" && Port == 80)
+                {
+                    Port = 443;
+                }
+                OnPropertyChanged(nameof(Protocol));
+                OnPropertyChanged(nameof(ComputedUrl));
+            }
+            else if (value == "HTTP" && UseHttps)
+            {
+                UseHttps = false;
+                // WebDAV 切换到 HTTP 时更新端口
+                if (Type == "webdav" && Port == 443)
+                {
+                    Port = 80;
+                }
+                OnPropertyChanged(nameof(Protocol));
+                OnPropertyChanged(nameof(ComputedUrl));
+            }
+        }
+    }
 
     [ObservableProperty]
     private string _host = "";
@@ -125,9 +174,14 @@ public partial class MountInfo : ObservableObject
     public bool IsS3Type => Type == "s3";
 
     /// <summary>
+    /// 计算属性：是否为网络存储类型（WebDAV/FTP/SFTP）
+    /// </summary>
+    public bool IsNetworkStorageType => IsWebDavType || IsFtpType || IsSftpType;
+
+    /// <summary>
     /// 计算属性：是否使用 URL 输入（非 WebDAV/FTP/SFTP 类型）
     /// </summary>
-    public bool UseUrlInput => !IsWebDavType && !IsFtpType && !IsSftpType;
+    public bool UseUrlInput => !IsNetworkStorageType;
 
     /// <summary>
     /// 获取默认端口
@@ -137,6 +191,7 @@ public partial class MountInfo : ObservableObject
         "webdav" => UseHttps ? 443 : 80,
         "ftp" => 21,
         "sftp" => 22,
+        "smb" => 445,
         _ => 443
     };
 

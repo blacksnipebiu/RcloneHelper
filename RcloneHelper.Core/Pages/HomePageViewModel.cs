@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -15,6 +16,11 @@ public partial class HomePageViewModel : ObservableObject
     private readonly MountService _mountService;
     private readonly INotificationService _notificationService;
     private readonly IDialogService _dialogService;
+
+    /// <summary>
+    /// 协议选项列表
+    /// </summary>
+    public string[] ProtocolOptions { get; } = new[] { "HTTPS", "HTTP" };
 
     [ObservableProperty]
     private ObservableCollection<MountInfo> _allMounts = new();
@@ -200,9 +206,8 @@ public partial class HomePageViewModel : ObservableObject
         try
         {
             _mountService.DeleteMount(mount.Name);
-            AllMounts.Remove(mount);
-            MountedMounts.Remove(mount);
-            UnmountedMounts.Remove(mount);
+            // Note: DeleteMount 会触发 MountsChanged 事件，LoadMountsFromService 会自动更新集合
+            // 所以不需要手动从 AllMounts/MountedMounts/UnmountedMounts 中移除
             SelectedMount = null;
             _notificationService.ShowSuccess("挂载已删除");
         }
@@ -370,8 +375,8 @@ public partial class HomePageViewModel : ObservableObject
                     Status = "未挂载"
                 };
                 _mountService.AddMount(newMount);
-                AllMounts.Add(newMount);
-                UnmountedMounts.Add(newMount);
+                // Note: AddMount 会触发 MountsChanged 事件，LoadMountsFromService 会自动更新 AllMounts
+                // 所以不需要手动添加到 AllMounts 和 UnmountedMounts
                 _notificationService.ShowSuccess("挂载已保存");
             }
 

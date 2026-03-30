@@ -35,6 +35,46 @@
                     </StackPanel>
                 </Border>
 
+                <TextBlock Text="代理设置" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"
+                           Foreground="{DynamicResource ForegroundBrush}" />
+
+                <Border Background="{DynamicResource CardBrush}" Padding="15" CornerRadius="5">
+                    <StackPanel Spacing="15">
+                        <CheckBox Content="启用代理" IsChecked="{Binding ProxyEnabled}"
+                                  Foreground="{DynamicResource ForegroundBrush}" />
+                        <TextBlock Text="启用后，所有 rclone 挂载操作都将通过指定的代理服务器访问网络"
+                                   Foreground="{DynamicResource ForegroundMutedBrush}" FontSize="12"
+                                   IsVisible="{Binding ProxyEnabled}" />
+
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto" IsVisible="{Binding ProxyEnabled}">
+                            <TextBlock Grid.Column="0" Text="代理服务器："
+                                       Foreground="{DynamicResource ForegroundMutedBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <ComboBox Grid.Column="1" SelectedItem="{Binding ProxyProtocol}"
+                                      ItemsSource="{Binding ProxyProtocolOptions}" MinWidth="80"
+                                      VerticalAlignment="Center" Margin="0,5" />
+                            <TextBox Grid.Column="2" Text="{Binding ProxyHost}"
+                                     Watermark="127.0.0.1" VerticalAlignment="Center" Margin="5,5" />
+                            <TextBlock Grid.Column="3" Text=":" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource ForegroundMutedBrush}" Margin="0,0,0,0" />
+                        </Grid>
+
+                        <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding ProxyEnabled}">
+                            <TextBlock Grid.Column="0" Text="端口号："
+                                       Foreground="{DynamicResource ForegroundMutedBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBox Grid.Column="1" Text="{Binding ProxyPort}"
+                                     Watermark="7890" Width="100" HorizontalAlignment="Left"
+                                     VerticalAlignment="Center" />
+                        </Grid>
+
+                        <TextBlock Text="常用端口: HTTP代理 80/8080, HTTPS代理 443, SOCKS5代理 1080/7890"
+                                   Foreground="{DynamicResource ForegroundMutedBrush}"
+                                   FontSize="11" TextWrapping="Wrap"
+                                   IsVisible="{Binding ProxyEnabled}" />
+                    </StackPanel>
+                </Border>
+
                 <TextBlock Text="数据存储" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"
                            Foreground="{DynamicResource ForegroundBrush}" />
 

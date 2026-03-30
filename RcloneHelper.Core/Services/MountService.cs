@@ -345,6 +345,9 @@ public class MountService
                 EnableRaisingEvents = true
             };
 
+            // 设置代理环境变量
+            SetProxyEnvironment(mountProcess.StartInfo);
+
             mountProcess.Exited += (s, e) =>
                         {
                             // 在 UI 线程上执行状态更新和通知
@@ -408,6 +411,24 @@ public class MountService
             _logger.Error($"挂载异常: {name}, 错误: {ex.Message}");
             throw new InvalidOperationException($"挂载错误: {ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// 为 ProcessStartInfo 设置代理环境变量
+    /// </summary>
+    private void SetProxyEnvironment(ProcessStartInfo startInfo)
+    {
+        var config = _configService.Current;
+        var proxyUrl = config.GetProxyUrl();
+        
+        if (string.IsNullOrWhiteSpace(proxyUrl))
+            return;
+
+        // 设置代理环境变量
+        startInfo.Environment["HTTP_PROXY"] = proxyUrl;
+        startInfo.Environment["HTTPS_PROXY"] = proxyUrl;
+
+        _logger.Debug($"代理已启用: {proxyUrl}");
     }
 
     /// <summary>
@@ -696,6 +717,9 @@ public class MountService
                 CreateNoWindow = true
             }
         };
+
+        // 设置代理环境变量
+        SetProxyEnvironment(process.StartInfo);
 
         _logger.Debug($"创建/更新 rclone 配置: {mount.Name}");
         process.Start();

@@ -169,19 +169,15 @@
                             <!-- WebDAV/FTP/SFTP 通用字段：主机地址 -->
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="主机地址:" VerticalAlignment="Center" Margin="5"
                                        Foreground="{DynamicResource ForegroundBrush}"
-                                       IsVisible="{Binding EditingMount.IsWebDavType}" />
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="主机地址:" VerticalAlignment="Center" Margin="5"
-                                       Foreground="{DynamicResource ForegroundBrush}"
-                                       IsVisible="{Binding EditingMount.IsFtpType}" />
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="主机地址:" VerticalAlignment="Center" Margin="5"
-                                       Foreground="{DynamicResource ForegroundBrush}"
-                                       IsVisible="{Binding EditingMount.IsSftpType}" />
-                            <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,Auto,Auto" 
+                                       IsVisible="{Binding EditingMount.IsNetworkStorageType}" />
+                            <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="Auto,*,Auto,Auto" 
                                   IsVisible="{Binding EditingMount.IsWebDavType}">
-                                <TextBox Grid.Column="0" Text="{Binding EditingMount.Host}" Watermark="example.com" Margin="0" />
-                                <TextBlock Grid.Column="1" Text=":" VerticalAlignment="Center" Margin="5,0"
+                                <ComboBox Grid.Column="0" SelectedItem="{Binding EditingMount.Protocol}" 
+                                          ItemsSource="{Binding ProtocolOptions}" MinWidth="75" Margin="5,5,5,5" />
+                                <TextBox Grid.Column="1" Text="{Binding EditingMount.Host}" Watermark="example.com" Margin="0,5" />
+                                <TextBlock Grid.Column="2" Text=":" VerticalAlignment="Center" Margin="0"
                                            Foreground="{DynamicResource ForegroundMutedBrush}" />
-                                <TextBox Grid.Column="2" Text="{Binding EditingMount.Port}" Watermark="443" Width="60" Margin="0" />
+                                <TextBox Grid.Column="3" Text="{Binding EditingMount.Port}" Watermark="443" Width="65" Margin="5,5,5,5" />
                             </Grid>
                             <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,Auto,Auto" 
                                   IsVisible="{Binding EditingMount.IsFtpType}">
@@ -198,64 +194,27 @@
                                 <TextBox Grid.Column="2" Text="{Binding EditingMount.Port}" Watermark="22" Width="60" Margin="0" />
                             </Grid>
 
-                            <!-- WebDAV HTTPS 复选框 -->
-                            <CheckBox Grid.Row="2" Grid.Column="0" Content="HTTPS" 
-                                      IsChecked="{Binding EditingMount.UseHttps}" Margin="5"
-                                      Foreground="{DynamicResource ForegroundBrush}"
-                                      IsVisible="{Binding EditingMount.IsWebDavType}" />
-
                             <!-- WebDAV/FTP/SFTP 路径 -->
                             <TextBlock Grid.Row="3" Grid.Column="0" Text="路径:" VerticalAlignment="Center" Margin="5"
                                        Foreground="{DynamicResource ForegroundBrush}"
-                                       IsVisible="{Binding EditingMount.IsWebDavType}" />
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="远程路径:" VerticalAlignment="Center" Margin="5"
-                                       Foreground="{DynamicResource ForegroundBrush}"
-                                       IsVisible="{Binding EditingMount.IsFtpType}" />
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="远程路径:" VerticalAlignment="Center" Margin="5"
-                                       Foreground="{DynamicResource ForegroundBrush}"
-                                       IsVisible="{Binding EditingMount.IsSftpType}" />
+                                       IsVisible="{Binding EditingMount.IsNetworkStorageType}" />
                             <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding EditingMount.Path}" 
-                                     Watermark="/dav 或 /remote.php/dav (可选)"
-                                     IsVisible="{Binding EditingMount.IsWebDavType}" />
-                            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding EditingMount.Path}" 
-                                     Watermark="/remote/path (可选)"
-                                     IsVisible="{Binding EditingMount.IsFtpType}" />
-                            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding EditingMount.Path}" 
-                                     Watermark="/home/user (可选)"
-                                     IsVisible="{Binding EditingMount.IsSftpType}" />
+                                     Watermark="路径 (可选)"
+                                     IsVisible="{Binding EditingMount.IsNetworkStorageType}" />
 
-                            <!-- WebDAV/FTP/SFTP 用户名密码 -->
+                            <!-- WebDAV/FTP/SFTP 用户名 -->
                             <TextBlock Grid.Row="4" Grid.Column="0" Text="用户名:" VerticalAlignment="Center" Margin="5"
                                        Foreground="{DynamicResource ForegroundBrush}"
-                                       IsVisible="{Binding EditingMount.IsWebDavType}" />
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="用户名:" VerticalAlignment="Center" Margin="5"
-                                       Foreground="{DynamicResource ForegroundBrush}"
-                                       IsVisible="{Binding EditingMount.IsFtpType}" />
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="用户名:" VerticalAlignment="Center" Margin="5"
-                                       Foreground="{DynamicResource ForegroundBrush}"
-                                       IsVisible="{Binding EditingMount.IsSftpType}" />
+                                       IsVisible="{Binding EditingMount.IsNetworkStorageType}" />
                             <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding EditingMount.User}" Watermark="可选"
-                                     IsVisible="{Binding EditingMount.IsWebDavType}" />
-                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding EditingMount.User}" Watermark="FTP用户名"
-                                     IsVisible="{Binding EditingMount.IsFtpType}" />
-                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding EditingMount.User}" Watermark="SFTP用户名"
-                                     IsVisible="{Binding EditingMount.IsSftpType}" />
+                                     IsVisible="{Binding EditingMount.IsNetworkStorageType}" />
 
+                            <!-- WebDAV/FTP/SFTP 密码 -->
                             <TextBlock Grid.Row="5" Grid.Column="0" Text="密码:" VerticalAlignment="Center" Margin="5"
                                        Foreground="{DynamicResource ForegroundBrush}"
-                                       IsVisible="{Binding EditingMount.IsWebDavType}" />
-                            <TextBlock Grid.Row="5" Grid.Column="0" Text="密码:" VerticalAlignment="Center" Margin="5"
-                                       Foreground="{DynamicResource ForegroundBrush}"
-                                       IsVisible="{Binding EditingMount.IsFtpType}" />
-                            <TextBlock Grid.Row="5" Grid.Column="0" Text="密码:" VerticalAlignment="Center" Margin="5"
-                                       Foreground="{DynamicResource ForegroundBrush}"
-                                       IsVisible="{Binding EditingMount.IsSftpType}" />
+                                       IsVisible="{Binding EditingMount.IsNetworkStorageType}" />
                             <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding EditingMount.Password}" PasswordChar="*" Watermark="可选"
-                                     IsVisible="{Binding EditingMount.IsWebDavType}" />
-                            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding EditingMount.Password}" PasswordChar="*" Watermark="FTP密码"
-                                     IsVisible="{Binding EditingMount.IsFtpType}" />
-                            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding EditingMount.Password}" PasswordChar="*" Watermark="SFTP密码"
-                                     IsVisible="{Binding EditingMount.IsSftpType}" />
+                                     IsVisible="{Binding EditingMount.IsNetworkStorageType}" />
 
                             <!-- WebDAV 服务商 -->
                             <TextBlock Grid.Row="6" Grid.Column="0" Text="服务商:" VerticalAlignment="Center" Margin="5"
@@ -320,7 +279,7 @@
                             <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding EditingMount.Url}" Watermark="https://example.com/path"
                                      IsVisible="{Binding EditingMount.UseUrlInput}" />
 
-                            <!-- 通用字段：本地盘符 -->
+<!-- 通用字段：本地盘符 -->
                             <TextBlock Grid.Row="10" Grid.Column="0" Text="本地盘符:" VerticalAlignment="Center" Margin="5"
                                        Foreground="{DynamicResource ForegroundBrush}" />
                             <ComboBox Grid.Row="10" Grid.Column="1" SelectedItem="{Binding EditingMount.LocalDrive}" HorizontalAlignment="Stretch">

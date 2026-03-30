@@ -103,3 +103,4 @@ $RECYCLE.BIN/
 *.pem
 appsettings.Development.json
 secrets.json
+output/publish/

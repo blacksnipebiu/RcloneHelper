@@ -27,6 +27,23 @@ public partial class SettingsPageViewModel : ObservableObject
     [ObservableProperty]
     private bool _startSilently;
 
+    [ObservableProperty]
+    private bool _proxyEnabled;
+
+    [ObservableProperty]
+    private string _proxyProtocol = "http";
+
+    [ObservableProperty]
+    private string _proxyHost = "";
+
+    [ObservableProperty]
+    private int _proxyPort = 7890;
+
+    /// <summary>
+    /// 代理协议选项列表
+    /// </summary>
+    public string[] ProxyProtocolOptions { get; } = new[] { "http", "https", "socks5" };
+
     /// <summary>
     /// 程序数据存放路径
     /// </summary>
@@ -76,6 +93,34 @@ public partial class SettingsPageViewModel : ObservableObject
         _configService.Update(c => c.StartSilently = value);
     }
 
+    partial void OnProxyEnabledChanged(bool value)
+    {
+        if (_isInitializing) return;
+
+        _configService.Update(c => c.ProxyEnabled = value);
+    }
+
+    partial void OnProxyProtocolChanged(string value)
+    {
+        if (_isInitializing) return;
+
+        _configService.Update(c => c.ProxyProtocol = value);
+    }
+
+    partial void OnProxyHostChanged(string value)
+    {
+        if (_isInitializing) return;
+
+        _configService.Update(c => c.ProxyHost = value);
+    }
+
+    partial void OnProxyPortChanged(int value)
+    {
+        if (_isInitializing) return;
+
+        _configService.Update(c => c.ProxyPort = value);
+    }
+
     private void CheckAutoStartStatus()
     {
         AutoStartEnabled = _systemService.IsAutoStartEnabled;
@@ -85,6 +130,10 @@ public partial class SettingsPageViewModel : ObservableObject
     {
         var config = _configService.Current;
         StartSilently = config.StartSilently;
+        ProxyEnabled = config.ProxyEnabled;
+        ProxyProtocol = config.ProxyProtocol;
+        ProxyHost = config.ProxyHost;
+        ProxyPort = config.ProxyPort;
     }
 
     [RelayCommand]
