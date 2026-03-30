@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -49,17 +50,67 @@ public class MountService
 
     private string GetRclonePath()
     {
-        var configuredPath = _configService.Current.RclonePath;
-        if (!string.IsNullOrEmpty(configuredPath) && File.Exists(configuredPath))
-            return configuredPath;
+        // 1. 优先查找 %APPDATA%\RcloneHelper 目录
+        var appDataRclone = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? Path.Combine(PathUtil.AppDataDir, "rclone.exe")
+            : Path.Combine(PathUtil.AppDataDir, "rclone");
 
-        // 默认路径：程序目录或 PATH
+        if (File.Exists(appDataRclone))
+            return appDataRclone;
+
+        // 2. 查找程序目录
         var appDir = AppDomain.CurrentDomain.BaseDirectory;
-        var localPath = Path.Combine(appDir, "rclone.exe");
-        if (File.Exists(localPath))
-            return localPath;
+        var localRclone = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? Path.Combine(appDir, "rclone.exe")
+            : Path.Combine(appDir, "rclone");
 
-        return "rclone"; // 依赖 PATH
+        if (File.Exists(localRclone))
+            return localRclone;
+
+        // 3. 从 PATH 环境变量查找实际路径
+        var pathRclone = FindRcloneInPath();
+        if (pathRclone != null)
+            return pathRclone;
+
+        // 4. 回退到使用 "rclone"，依赖系统 PATH
+        return "rclone";
+    }
+
+    private static string? FindRcloneInPath()
+    {
+        try
+        {
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "where" : "which",
+                    Arguments = "rclone",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            var output = process.StandardOutput.ReadToEnd();
+            process.WaitForExit(5000);
+
+            if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+            {
+                // where/which 可能返回多行，取第一行
+                var path = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)[0];
+                if (File.Exists(path))
+                    return path;
+            }
+        }
+        catch
+        {
+            // 忽略错误
+        }
+
+        return null;
     }
 
     #region 文件操作

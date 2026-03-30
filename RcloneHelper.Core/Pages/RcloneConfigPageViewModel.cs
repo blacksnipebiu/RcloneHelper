@@ -6,6 +6,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using RcloneHelper.Helpers;
@@ -20,7 +21,6 @@ public partial class RcloneConfigPageViewModel : ObservableObject
     private readonly ISystemService _systemService;
     private readonly INotificationService _notificationService;
     private readonly IConfigService _configService;
-    private bool _isInitializing = true;
 
     [ObservableProperty]
     private string _rcloneVersion = "正在获取...";
@@ -32,9 +32,6 @@ public partial class RcloneConfigPageViewModel : ObservableObject
     private string _cacheDir = "正在获取...";
 
     [ObservableProperty]
-    private string _logContent = "";
-
-    [ObservableProperty]
     private string _configContent = "";
 
     [ObservableProperty]
@@ -44,10 +41,10 @@ public partial class RcloneConfigPageViewModel : ObservableObject
     private RemoteConfig? _selectedRemote;
 
     [ObservableProperty]
-    private string _customRclonePath = "";
+    private SystemDependency? _fuseDependency;
 
     [ObservableProperty]
-    private SystemDependency? _fuseDependency;
+    private SystemDependency? _rcloneDependency;
 
     public RcloneConfigPageViewModel(
         ISystemService systemService,
@@ -58,25 +55,68 @@ public partial class RcloneConfigPageViewModel : ObservableObject
         _notificationService = notificationService;
         _configService = configService;
 
-        LoadSettings();
         CheckDependencies();
         LoadRcloneInfo();
-        _isInitializing = false;
     }
 
-    private string GetRclonePath()
+    private string? GetRclonePath()
     {
-        var configuredPath = _configService.Current.RclonePath;
-        if (!string.IsNullOrEmpty(configuredPath) && File.Exists(configuredPath))
-            return configuredPath;
+        // 1. 优先查找 %APPDATA%\RcloneHelper 目录
+        var appDataRclone = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? Path.Combine(PathUtil.AppDataDir, "rclone.exe")
+            : Path.Combine(PathUtil.AppDataDir, "rclone");
 
-        // 默认路径：程序目录或 PATH
+        if (File.Exists(appDataRclone))
+            return appDataRclone;
+
+        // 2. 查找程序目录
         var appDir = AppDomain.CurrentDomain.BaseDirectory;
-        var localPath = Path.Combine(appDir, "rclone.exe");
-        if (File.Exists(localPath))
-            return localPath;
+        var localRclone = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? Path.Combine(appDir, "rclone.exe")
+            : Path.Combine(appDir, "rclone");
 
-        return "rclone"; // 依赖 PATH
+        if (File.Exists(localRclone))
+            return localRclone;
+
+        // 3. 从 PATH 环境变量查找实际路径
+        return FindRcloneInPath();
+    }
+
+    private static string? FindRcloneInPath()
+    {
+        try
+        {
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "where" : "which",
+                    Arguments = "rclone",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            var output = process.StandardOutput.ReadToEnd();
+            process.WaitForExit(5000);
+
+            if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+            {
+                // where/which 可能返回多行，取第一行
+                var path = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)[0];
+                if (File.Exists(path))
+                    return path;
+            }
+        }
+        catch
+        {
+            // 忽略错误
+        }
+
+        return null;
     }
 
     private void LoadRcloneInfo()
@@ -84,7 +124,7 @@ public partial class RcloneConfigPageViewModel : ObservableObject
         try
         {
             var rclonePath = GetRclonePath();
-            if (File.Exists(rclonePath))
+            if (rclonePath != null && File.Exists(rclonePath))
             {
                 var versionInfo = GetFileVersion(rclonePath);
                 RcloneVersion = $"v{versionInfo}";
@@ -98,16 +138,6 @@ public partial class RcloneConfigPageViewModel : ObservableObject
             CacheDir = PathUtil.RcloneCacheDir;
 
             LoadRemotesWithMountStatus();
-
-            var logPath = PathUtil.LogPath;
-            if (File.Exists(logPath))
-            {
-                LogContent = ReadLastLines(logPath, 100);
-            }
-            else
-            {
-                LogContent = "暂无日志";
-            }
         }
         catch (Exception ex)
         {
@@ -236,22 +266,6 @@ public partial class RcloneConfigPageViewModel : ObservableObject
         }
     }
 
-    private string ReadLastLines(string filePath, int lines)
-    {
-        try
-        {
-            var allLines = File.ReadAllLines(filePath);
-            var lastLines = allLines.Length > lines
-                ? allLines[^lines..]
-                : allLines;
-            return string.Join(Environment.NewLine, lastLines);
-        }
-        catch
-        {
-            return "无法读取日志";
-        }
-    }
-
     [RelayCommand]
     private void OpenConfigFolder()
     {
@@ -273,16 +287,17 @@ public partial class RcloneConfigPageViewModel : ObservableObject
     [RelayCommand]
     private void OpenCacheFolder()
     {
+        if (!Directory.Exists(CacheDir))
+        {
+            return;
+        }
         try
         {
-            if (Directory.Exists(CacheDir))
+            Process.Start(new ProcessStartInfo
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = CacheDir,
-                    UseShellExecute = true
-                });
-            }
+                FileName = CacheDir,
+                UseShellExecute = true
+            });
         }
         catch { }
     }
@@ -361,33 +376,29 @@ public partial class RcloneConfigPageViewModel : ObservableObject
 
     #region 设置和依赖
 
-    partial void OnCustomRclonePathChanged(string value)
-    {
-        if (_isInitializing) return;
-        _configService.Update(c => c.RclonePath = CustomRclonePath);
-    }
-
-    private void LoadSettings()
-    {
-        CustomRclonePath = _configService.Current.RclonePath;
-    }
-
     private void CheckDependencies()
     {
         FuseDependency = _systemService.GetFuseDependency();
+        RcloneDependency = _systemService.GetRcloneDependency();
     }
 
     [RelayCommand]
     private void OpenInstallUrl()
     {
-        if (FuseDependency == null || string.IsNullOrEmpty(FuseDependency.InstallUrl))
+        // 优先处理需要安装的依赖
+        var dependency = FuseDependency?.NeedsInstallation == true ? FuseDependency :
+                         RcloneDependency?.NeedsInstallation == true ? RcloneDependency :
+                         FuseDependency?.IsInstalled == false ? FuseDependency :
+                         RcloneDependency?.IsInstalled == false ? RcloneDependency : null;
+
+        if (dependency == null || string.IsNullOrEmpty(dependency.InstallUrl))
             return;
 
         try
         {
             Process.Start(new ProcessStartInfo
             {
-                FileName = FuseDependency.InstallUrl,
+                FileName = dependency.InstallUrl,
                 UseShellExecute = true
             });
         }

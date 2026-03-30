@@ -20,8 +20,8 @@ AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
-; Remove the following line to run in administrative install mode (install for all users.)
-PrivilegesRequired=lowest
+; Require admin privileges for WinFsp installation
+PrivilegesRequired=admin
 OutputDir={#SourcePath}
 OutputBaseFilename=RcloneHelperv{#MyAppVersion}
 Compression=lzma
@@ -37,6 +37,10 @@ Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.i
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
+; 依赖文件 - 嵌入安装包但不自动安装
+Source: "{#SourcePath}winfsp-2.1.25156.msi"; DestDir: "{tmp}"; Flags: dontcopy noencryption
+Source: "{#SourcePath}rclone-v1.73.3-windows-amd64.zip"; DestDir: "{tmp}"; Flags: dontcopy noencryption
+; 主程序文件
 Source: "{#SourcePath}publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
@@ -46,3 +50,53 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+  WinFspPath: String;
+  RclonePath: String;
+  RcloneDest: String;
+  TempDir: String;
+begin
+  // ssInstall 阶段：在主程序文件复制之前安装 WinFsp
+  if CurStep = ssInstall then
+  begin
+    TempDir := ExpandConstant('{tmp}');
+    
+    // 提取并安装 WinFsp
+    ExtractTemporaryFile('winfsp-2.1.25156.msi');
+    WinFspPath := TempDir + '\winfsp-2.1.25156.msi';
+    
+    if FileExists(WinFspPath) then
+    begin
+      // 静默安装 WinFsp MSI
+      Exec('msiexec.exe', '/i "' + WinFspPath + '" /quiet /norestart', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    end;
+  end;
+  
+  // ssPostInstall 阶段：主程序文件复制完成后解压 rclone
+  if CurStep = ssPostInstall then
+  begin
+    TempDir := ExpandConstant('{tmp}');
+    
+    // 提取 rclone zip
+    ExtractTemporaryFile('rclone-v1.73.3-windows-amd64.zip');
+    RclonePath := TempDir + '\rclone-v1.73.3-windows-amd64.zip';
+    RcloneDest := ExpandConstant('{app}');
+    
+    if FileExists(RclonePath) and DirExists(RcloneDest) then
+    begin
+      // 使用 PowerShell 解压 zip 文件
+      Exec('powershell.exe', 
+           '-Command "Expand-Archive -Path ''' + RclonePath + ''' -DestinationPath ''' + RcloneDest + ''' -Force"', 
+           '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    end;
+  end;
+end;

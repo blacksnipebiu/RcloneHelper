@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Reflection;
 
 /// <summary>
 /// 路径管理工具类
@@ -17,7 +18,14 @@ public static class PathUtil
     private static readonly Lazy<string> _rcloneConfigDir = new(() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "rclone"));
 
+    private static readonly Lazy<string> _appLocation = new(() =>
+    {
+        var location = Assembly.GetExecutingAssembly().Location;
+        return string.IsNullOrEmpty(location) ? AppContext.BaseDirectory : Path.GetDirectoryName(location) ?? AppContext.BaseDirectory;
+    });
+
     public static string AppDataDir => _appDataDir.Value;
+    public static string AppLocation => _appLocation.Value;
     public static string MountsConfigPath => Path.Combine(AppDataDir, "mounts.json");
     public static string SettingsPath => Path.Combine(AppDataDir, "settings.json");
     public static string LogPath => Path.Combine(AppDataDir, "log");

@@ -96,17 +96,17 @@
                                     Foreground="{DynamicResource ButtonForegroundBrush}" />
                         </Grid>
 
-                        <!-- 日志文件 -->
+                        <!-- 程序所在位置 -->
                         <Grid ColumnDefinitions="Auto,*,Auto">
-                            <TextBlock Grid.Column="0" Text="日志文件："
+                            <TextBlock Grid.Column="0" Text="程序位置："
                                        Foreground="{DynamicResource ForegroundMutedBrush}"
                                        VerticalAlignment="Center" Margin="0,0,10,0" />
-                            <TextBlock Grid.Column="1" Text="{Binding LogPath}"
+                            <TextBlock Grid.Column="1" Text="{Binding AppLocation}"
                                        Foreground="{DynamicResource ForegroundBrush}"
                                        VerticalAlignment="Center"
                                        TextWrapping="Wrap" />
                             <Button Grid.Column="2" Content="打开"
-                                    Command="{Binding OpenLogFolderCommand}"
+                                    Command="{Binding OpenAppLocationFolderCommand}"
                                     Padding="10,5" Margin="10,0,0,0"
                                     Background="{DynamicResource ButtonBrush}"
                                     Foreground="{DynamicResource ButtonForegroundBrush}" />

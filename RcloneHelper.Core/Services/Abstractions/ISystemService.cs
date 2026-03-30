@@ -82,6 +82,11 @@ public interface ISystemService
     /// </summary>
     SystemDependency? GetFuseDependency();
 
+    /// <summary>
+    /// 获取 rclone 依赖状态
+    /// </summary>
+    SystemDependency? GetRcloneDependency();
+
     #endregion
 }
 

@@ -388,6 +388,124 @@ public class WindowsSystemService : ISystemService
         return dependency;
     }
 
+    public SystemDependency? GetRcloneDependency()
+    {
+        var dependency = new SystemDependency
+        {
+            Name = "rclone",
+            Description = "rclone 命令行工具，核心依赖",
+            InstallUrl = "https://rclone.org/downloads/",
+            Icon = "☁️"
+        };
+
+        try
+        {
+            string? rclonePath = null;
+
+            // 1. 优先查找 %APPDATA%\RcloneHelper 目录
+            var appDataRclone = Path.Combine(PathUtil.AppDataDir, "rclone.exe");
+            if (File.Exists(appDataRclone))
+            {
+                rclonePath = appDataRclone;
+            }
+
+            // 2. 查找程序目录
+            if (rclonePath == null)
+            {
+                var appDir = AppDomain.CurrentDomain.BaseDirectory;
+                var localRclone = Path.Combine(appDir, "rclone.exe");
+                if (File.Exists(localRclone))
+                {
+                    rclonePath = localRclone;
+                }
+            }
+
+            // 3. 从 PATH 环境变量查找
+            if (rclonePath == null)
+            {
+                rclonePath = FindRcloneInPath();
+            }
+
+            // 4. 验证 rclone 是否可用
+            var isInstalled = false;
+            if (rclonePath != null)
+            {
+                isInstalled = TestRcloneExecution(rclonePath);
+            }
+
+            dependency.Status = isInstalled ? DependencyStatus.Installed : DependencyStatus.NotInstalled;
+        }
+        catch
+        {
+            dependency.Status = DependencyStatus.NotInstalled;
+        }
+
+        return dependency;
+    }
+
+    private static string? FindRcloneInPath()
+    {
+        try
+        {
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "where",
+                    Arguments = "rclone",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            var output = process.StandardOutput.ReadToEnd();
+            process.WaitForExit(5000);
+
+            if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+            {
+                var path = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)[0];
+                if (File.Exists(path))
+                    return path;
+            }
+        }
+        catch
+        {
+            // 忽略错误
+        }
+
+        return null;
+    }
+
+    private static bool TestRcloneExecution(string rclonePath)
+    {
+        try
+        {
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = rclonePath,
+                    Arguments = "version",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            process.WaitForExit(5000);
+            return process.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     #endregion
 
     #endregion

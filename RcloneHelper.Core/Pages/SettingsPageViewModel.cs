@@ -50,9 +50,9 @@ public partial class SettingsPageViewModel : ObservableObject
     public string AppDataPath => PathUtil.AppDataDir;
 
     /// <summary>
-    /// 日志文件路径
+    /// 程序所在位置
     /// </summary>
-    public string LogPath => PathUtil.LogPath;
+    public string AppLocation => PathUtil.AppLocation;
 
     public SettingsPageViewModel(
         ISystemService systemService,
@@ -157,16 +157,15 @@ public partial class SettingsPageViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void OpenLogFolder()
+    private void OpenAppLocationFolder()
     {
         try
         {
-            var logDir = Path.GetDirectoryName(LogPath);
-            if (!string.IsNullOrEmpty(logDir) && Directory.Exists(logDir))
+            if (Directory.Exists(AppLocation))
             {
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = logDir,
+                    FileName = AppLocation,
                     UseShellExecute = true
                 });
             }
