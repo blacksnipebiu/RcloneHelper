@@ -20,6 +20,22 @@
         <Style Selector="ComboBox">
             <Setter Property="Margin" Value="5" />
         </Style>
+        <!-- 操作按钮样式 - 无焦点视觉效果 -->
+        <Style Selector="Button.action">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+        </Style>
+        <Style Selector="Button.action:focus">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.action:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SurfaceLowBrush}" />
+        </Style>
+        <Style Selector="Button.action:pressed">
+            <Setter Property="Background" Value="{DynamicResource SurfaceHighBrush}" />
+        </Style>
     </UserControl.Styles>
 
     <Grid RowDefinitions="Auto,*,Auto">
@@ -52,91 +68,86 @@
 
                     <!-- 挂载列表 -->
                     <Border Grid.Row="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
-                        <ListBox ItemsSource="{Binding AllMounts}" SelectedItem="{Binding SelectedMount}" 
-                                 Background="Transparent" BorderThickness="0">
-                            <ListBox.Styles>
-                                <Style Selector="ListBoxItem">
-                                    <Setter Property="Padding" Value="0" />
-                                    <Setter Property="Margin" Value="0" />
-                                </Style>
-                                <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
-                                    <Setter Property="Background" Value="{DynamicResource ListItemHoverBrush}" />
-                                </Style>
-                                <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
-                                    <Setter Property="Background" Value="{DynamicResource ListItemSelectedBrush}" />
-                                </Style>
-                                <!-- 选中状态下的文字颜色覆盖 -->
-                                <Style Selector="ListBoxItem:selected TextBlock">
-                                    <Setter Property="Foreground" Value="{DynamicResource ListItemSelectedForegroundBrush}" />
-                                </Style>
-                                <Style Selector="ListBoxItem:selected Path">
-                                    <Setter Property="Fill" Value="{DynamicResource ListItemSelectedForegroundBrush}" />
-                                </Style>
-                            </ListBox.Styles>
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="10,8">
-                                        <Grid ColumnDefinitions="50,*,80,80,100">
-                                            <!-- 状态 -->
-                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Spacing="6">
-                                                <Ellipse Width="10" Height="10" Fill="{DynamicResource SuccessBrush}" 
-                                                         IsVisible="{Binding IsMounted}" />
-                                                <Ellipse Width="10" Height="10" Fill="{DynamicResource ForegroundMutedBrush}" 
-                                                         IsVisible="{Binding !IsMounted}" />
-                                            </StackPanel>
+                        <ScrollViewer>
+                            <ItemsControl ItemsSource="{Binding AllMounts}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="10,8">
+                                            <Border.Styles>
+                                                <Style Selector="Border:pointerover">
+                                                    <Setter Property="Background" Value="{DynamicResource ListItemHoverBrush}" />
+                                                </Style>
+                                            </Border.Styles>
+                                            <Grid ColumnDefinitions="50,*,80,80,100">
+                                                <!-- 状态 -->
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Spacing="6">
+                                                    <Ellipse Width="10" Height="10" Fill="{DynamicResource SuccessBrush}" 
+                                                             IsVisible="{Binding IsMounted}" />
+                                                    <Ellipse Width="10" Height="10" Fill="{DynamicResource ForegroundMutedBrush}" 
+                                                             IsVisible="{Binding !IsMounted}" />
+                                                </StackPanel>
 
-                                            <!-- 名称 -->
-                                            <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="Bold" 
-                       VerticalAlignment="Center" Foreground="{DynamicResource ForegroundBrush}" />
+                                                <!-- 名称 -->
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="Bold" 
+                           VerticalAlignment="Center" Foreground="{DynamicResource ForegroundBrush}" />
 
-                                            <!-- 类型 -->
-                                            <TextBlock Grid.Column="2" Text="{Binding Type}" VerticalAlignment="Center" 
-                       Foreground="{DynamicResource ForegroundMutedBrush}" />
+                                                <!-- 类型 -->
+                                                <TextBlock Grid.Column="2" Text="{Binding Type}" VerticalAlignment="Center" 
+                           Foreground="{DynamicResource ForegroundMutedBrush}" />
 
-                                            <!-- 盘符 -->
-                                            <TextBlock Grid.Column="3" Text="{Binding LocalDrive}" VerticalAlignment="Center" 
-                       FontWeight="Bold" Foreground="{DynamicResource SuccessBrush}" />
+                                                <!-- 盘符 -->
+                                                <TextBlock Grid.Column="3" Text="{Binding LocalDrive}" VerticalAlignment="Center" 
+                           FontWeight="Bold" Foreground="{DynamicResource SuccessBrush}" />
 
-                                            <!-- 操作按钮 -->
-                                            <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="2">
-                                                <!-- 播放按钮 - 未挂载时显示 -->
-                                                <Button IsVisible="{Binding !IsMounted}" Background="Transparent" Padding="8,3" Margin="0" Cursor="Hand"
-                                                        Command="{Binding $parent[UserControl].DataContext.MountItemCommand}"
-                                                        CommandParameter="{Binding}">
-                                                    <Path Width="12" Height="12" Stretch="Uniform" 
-                                                          Fill="{DynamicResource ForegroundBrush}"
-                                                          Data="{DynamicResource IconPlay}" />
-                                                </Button>
-                                                <!-- 暂停按钮 - 已挂载时显示 -->
-                                                <Button IsVisible="{Binding IsMounted}" Background="Transparent" Padding="8,3" Margin="0" Cursor="Hand"
-                                                        Command="{Binding $parent[UserControl].DataContext.UnmountItemCommand}"
-                                                        CommandParameter="{Binding}">
-                                                    <Path Width="12" Height="12" Stretch="Uniform" 
-                                                          Fill="{DynamicResource ForegroundBrush}"
-                                                          Data="{DynamicResource IconPause}" />
-                                                </Button>
-                                                <!-- 编辑按钮 -->
-                                                <Button Background="Transparent" Padding="8,3" Margin="0" Cursor="Hand"
-                                                        Command="{Binding $parent[UserControl].DataContext.EditItemCommand}"
-                                                        CommandParameter="{Binding}">
-                                                    <Path Width="12" Height="12" Stretch="Uniform" 
-                                                          Fill="{DynamicResource ForegroundBrush}"
-                                                          Data="{DynamicResource IconEdit}" />
-                                                </Button>
-                                                <!-- 删除按钮 -->
-                                                <Button Background="Transparent" Padding="8,3" Margin="0" Cursor="Hand"
-                                                        Command="{Binding $parent[UserControl].DataContext.DeleteItemCommand}"
-                                                        CommandParameter="{Binding}">
-                                                    <Path Width="12" Height="12" Stretch="Uniform" 
-                                                          Fill="{DynamicResource ForegroundBrush}"
-                                                          Data="{DynamicResource IconDelete}" />
-                                                </Button>
-                                            </StackPanel>
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
+                                                <!-- 操作按钮 -->
+                                                <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="2">
+                                                    <!-- 播放按钮 - 未挂载且未在挂载中时显示 -->
+                                                    <Button Classes="action" IsVisible="{Binding CanMount}" Background="Transparent" Padding="8,3" Margin="0" Cursor="Hand"
+                                                            Command="{Binding $parent[UserControl].DataContext.MountItemCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <Path Width="12" Height="12" Stretch="Uniform" 
+                                                              Fill="{DynamicResource ForegroundBrush}"
+                                                              Data="{DynamicResource IconPlay}" />
+                                                    </Button>
+                                                    <!-- 取消按钮 - 正在挂载中时显示 -->
+                                                    <Button Classes="action" IsVisible="{Binding IsMounting}" Background="Transparent" Padding="8,3" Margin="0" Cursor="Hand"
+                                                            Command="{Binding $parent[UserControl].DataContext.CancelMountItemCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <Path Width="12" Height="12" Stretch="Uniform" 
+                                                              Fill="{DynamicResource ErrorBrush}"
+                                                              Data="{DynamicResource IconClose}" />
+                                                    </Button>
+                                                    <!-- 暂停按钮 - 已挂载时显示 -->
+                                                    <Button Classes="action" IsVisible="{Binding IsMounted}" Background="Transparent" Padding="8,3" Margin="0" Cursor="Hand"
+                                                            Command="{Binding $parent[UserControl].DataContext.UnmountItemCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <Path Width="12" Height="12" Stretch="Uniform" 
+                                                              Fill="{DynamicResource ForegroundBrush}"
+                                                              Data="{DynamicResource IconPause}" />
+                                                    </Button>
+                                                    <!-- 编辑按钮 -->
+                                                    <Button Classes="action" Background="Transparent" Padding="8,3" Margin="0" Cursor="Hand"
+                                                            Command="{Binding $parent[UserControl].DataContext.EditItemCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <Path Width="12" Height="12" Stretch="Uniform" 
+                                                              Fill="{DynamicResource ForegroundBrush}"
+                                                              Data="{DynamicResource IconEdit}" />
+                                                    </Button>
+                                                    <!-- 删除按钮 -->
+                                                    <Button Classes="action" Background="Transparent" Padding="8,3" Margin="0" Cursor="Hand"
+                                                            Command="{Binding $parent[UserControl].DataContext.DeleteItemCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <Path Width="12" Height="12" Stretch="Uniform" 
+                                                              Fill="{DynamicResource ForegroundBrush}"
+                                                              Data="{DynamicResource IconDelete}" />
+                                                    </Button>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
                     </Border>
                 </Grid>
             </Grid>

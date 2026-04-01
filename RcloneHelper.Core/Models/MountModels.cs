@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using RcloneHelper.Helpers;
 using System;
 using System.Diagnostics;
+using System.Threading;
 
 namespace RcloneHelper.Models;
 
@@ -80,10 +81,32 @@ public partial class MountInfo : ObservableObject
     private string _vendor = "other";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanMount))]
+    [NotifyPropertyChangedFor(nameof(CanUnmount))]
     private bool _isMounted;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanMount))]
+    [NotifyPropertyChangedFor(nameof(CanUnmount))]
+    private bool _isMounting;
+
+    [ObservableProperty]
     private string _status = "未挂载";
+
+    /// <summary>
+    /// 用于取消挂载操作的 CancellationTokenSource
+    /// </summary>
+    public CancellationTokenSource? MountCancellationTokenSource { get; set; }
+
+    /// <summary>
+    /// 计算属性：是否可以挂载（未挂载且未在挂载中）
+    /// </summary>
+    public bool CanMount => !IsMounted && !IsMounting;
+
+    /// <summary>
+    /// 计算属性：是否可以卸载（已挂载且未在挂载中）
+    /// </summary>
+    public bool CanUnmount => IsMounted && !IsMounting;
 
     [ObservableProperty]
     private bool _autoMountOnStart = true;

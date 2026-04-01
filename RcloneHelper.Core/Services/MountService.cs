@@ -358,8 +358,9 @@ public class MountService
     /// </summary>
     /// <param name="name">挂载名称</param>
     /// <param name="oldName">旧名称（如果名称变更需要删除旧的 rclone 配置）</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns>挂载是否成功</returns>
-    public async Task<bool> MountAsync(string name, string? oldName = null)
+    public async Task<bool> MountAsync(string name, string? oldName = null, CancellationToken cancellationToken = default)
     {
         var mount = GetMount(name);
         if (mount == null)
@@ -371,10 +372,13 @@ public class MountService
         if (mount.IsMounted)
             return true;
 
+        // 设置挂载中状态
+        mount.IsMounting = true;
+        mount.Status = "正在挂载...";
+
         try
         {
             _logger.Info($"开始挂载: {name} ({mount.Type}) -> {mount.LocalDrive}");
-            mount.Status = "正在挂载...";
 
             // 创建 rclone 配置（如果名称变更，删除旧的配置）
             await CreateRcloneConfigAsync(mount, oldName);
@@ -433,9 +437,28 @@ public class MountService
 
             while (DateTime.UtcNow - startTime < timeout)
             {
+                // 检查取消请求
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    _logger.Info($"挂载被取消: {name}");
+                    // 终止进程
+                    if (!mountProcess.HasExited)
+                    {
+                        mountProcess.Kill();
+                        mountProcess.WaitForExit(5000);
+                    }
+                    _mountProcesses.Remove(name);
+                    mount.MountProcess = null;
+                    mount.IsMounting = false;
+                    mount.Status = "已取消";
+                    mount.MountCancellationTokenSource = null;
+                    throw new OperationCanceledException("挂载操作已取消", cancellationToken);
+                }
+
                 if (mountProcess.HasExited)
                 {
                     var error = await mountProcess.StandardError.ReadToEndAsync();
+                    mount.IsMounting = false;
                     mount.Status = "挂载失败";
                     _logger.Error($"挂载失败: {name}, 进程已退出, 错误: {error}");
                     throw new InvalidOperationException($"挂载失败: {error}");
@@ -443,22 +466,33 @@ public class MountService
 
                 if (IsMountPointAccessible(mount.LocalDrive))
                 {
+                    mount.IsMounting = false;
                     mount.IsMounted = true;
                     mount.Status = $"已挂载到 {mount.LocalDrive}";
+                    mount.MountCancellationTokenSource = null;
                     _logger.Info($"挂载成功: {name} -> {mount.LocalDrive}, 耗时 {(DateTime.UtcNow - startTime).TotalSeconds:F1}s");
                     return true;
                 }
 
-                await Task.Delay(200);
+                await Task.Delay(200, cancellationToken);
             }
 
+            mount.IsMounting = false;
             mount.Status = "挂载超时";
+            mount.MountCancellationTokenSource = null;
             _logger.Error($"挂载超时: {name}, 挂载点 {mount.LocalDrive} 未能访问");
             throw new InvalidOperationException($"挂载超时: 挂载点 {mount.LocalDrive} 在 {timeout.TotalSeconds} 秒内未能访问");
         }
+        catch (OperationCanceledException)
+        {
+            // 取消操作已经在上面处理，直接抛出
+            throw;
+        }
         catch (Exception ex)
         {
+            mount.IsMounting = false;
             mount.Status = "挂载失败";
+            mount.MountCancellationTokenSource = null;
             _logger.Error($"挂载异常: {name}, 错误: {ex.Message}");
             throw new InvalidOperationException($"挂载错误: {ex.Message}", ex);
         }
@@ -493,7 +527,7 @@ public class MountService
             : $"{mount.Name}:{mount.RemotePath}";
 
         // 基础参数
-        var args = $"mount {remotePath} {mount.LocalDrive} --vfs-cache-mode writes";
+        var args = $"mount {remotePath} {mount.LocalDrive} --vfs-cache-mode writes --links";
 
         // 网络模式
         if (mount.UseNetworkMode)
@@ -509,6 +543,28 @@ public class MountService
     }
 
     /// <summary>
+    /// 取消正在进行的挂载操作
+    /// </summary>
+    /// <param name="name">挂载名称</param>
+    public void CancelMount(string name)
+    {
+        var mount = GetMount(name);
+        if (mount == null)
+        {
+            _logger.Warning($"取消挂载失败: 未找到名为 {name} 的挂载");
+            return;
+        }
+
+        if (!mount.IsMounting)
+        {
+            _logger.Warning($"取消挂载失败: {name} 未在挂载中");
+            return;
+        }
+
+        // 触发取消令牌
+        mount.MountCancellationTokenSource?.Cancel();
+        _logger.Info($"已请求取消挂载: {name}");
+    }/// <summary>
     /// 执行卸载操作
     /// </summary>
     /// <param name="name">挂载名称</param>

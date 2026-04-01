@@ -2,6 +2,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -67,10 +68,10 @@ public partial class HomePageViewModel : ObservableObject
     public async Task AutoMountConfiguredAsync()
     {
         var toMount = AllMounts.Where(m => m.AutoMountOnStart && !m.IsMounted).ToList();
-        foreach (var mount in toMount)
-        {
-            await MountAsync(mount);
-        }
+        
+        // 并行执行所有挂载任务
+        var tasks = toMount.Select(mount => MountAsync(mount));
+        await Task.WhenAll(tasks);
     }
 
     /// <summary>
@@ -414,10 +415,10 @@ public partial class HomePageViewModel : ObservableObject
     private async Task MountAllAsync()
     {
         var toMount = UnmountedMounts.ToList();
-        foreach (var mount in toMount)
-        {
-            await MountAsync(mount);
-        }
+        
+        // 并行执行所有挂载任务
+        var tasks = toMount.Select(mount => MountAsync(mount));
+        await Task.WhenAll(tasks);
     }
 
     [RelayCommand]
@@ -433,7 +434,7 @@ public partial class HomePageViewModel : ObservableObject
     [RelayCommand]
     private async Task MountItem(MountInfo? mount)
     {
-        if (mount == null || mount.IsMounted) return;
+        if (mount == null || mount.IsMounted || mount.IsMounting) return;
         await MountAsync(mount);
     }
 
@@ -442,6 +443,13 @@ public partial class HomePageViewModel : ObservableObject
     {
         if (mount == null || !mount.IsMounted) return;
         await UnmountAsync(mount);
+    }
+
+    [RelayCommand]
+    private void CancelMountItem(MountInfo? mount)
+    {
+        if (mount == null || !mount.IsMounting) return;
+        _mountService.CancelMount(mount.Name);
     }
 
     [RelayCommand]
@@ -474,16 +482,31 @@ public partial class HomePageViewModel : ObservableObject
 
     private async Task MountAsync(MountInfo mount)
     {
+        // 创建取消令牌
+        mount.MountCancellationTokenSource = new CancellationTokenSource();
+        
         try
         {
-            await _mountService.MountAsync(mount.Name);
+            await _mountService.MountAsync(mount.Name, null, mount.MountCancellationTokenSource.Token);
             MoveToMounted(mount);
             _notificationService.ShowSuccess($"{mount.Name} 挂载成功");
         }
+        catch (OperationCanceledException)
+        {
+            mount.IsMounting = false;
+            mount.Status = "已取消";
+            _notificationService.Show($"{mount.Name} 挂载已取消", NotificationType.Info);
+        }
         catch (Exception ex)
         {
+            mount.IsMounting = false;
             mount.Status = "挂载失败";
             _notificationService.ShowError(ex.Message);
+        }
+        finally
+        {
+            mount.MountCancellationTokenSource?.Dispose();
+            mount.MountCancellationTokenSource = null;
         }
     }
 
