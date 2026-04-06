@@ -49,11 +49,11 @@ public partial class App : Application
             _logger?.Info("初始化主窗口");
 
             var mainWindow = _serviceProvider!.GetRequiredService<MainWindow>();
-            desktop.MainWindow = mainWindow;
 
-            // 静默启动处理
+            // 静默启动处理 - 必须在设置 MainWindow 之前处理
             HandleSilentStart(mainWindow);
 
+            desktop.MainWindow = mainWindow;
             desktop.Exit += OnDesktopExit;
         }
 
@@ -73,9 +73,15 @@ public partial class App : Application
         var configService = _serviceProvider!.GetRequiredService<IConfigService>();
         if (configService.Current.StartSilently)
         {
+            // 先隐藏窗口防止闪现
             mainWindow.WindowState = WindowState.Minimized;
             mainWindow.ShowInTaskbar = false;
-            mainWindow.Hide();
+
+            // 在 UI 线程下一个周期执行隐藏操作
+            Dispatcher.UIThread.Post(() =>
+            {
+                mainWindow.Hide();
+            });
         }
     }
 

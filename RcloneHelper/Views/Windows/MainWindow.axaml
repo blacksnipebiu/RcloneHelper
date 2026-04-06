@@ -117,12 +117,17 @@
         <Grid ColumnDefinitions="200,*">
             <!-- 左侧导航栏 - 占满整个高度 -->
             <Border Grid.Column="0" Background="{DynamicResource NavBarBackgroundBrush}">
-                <Grid RowDefinitions="Auto,*,Auto">
+                <Grid RowDefinitions="Auto,*">
                     <!-- Logo/标题区 -->
                     <Border Grid.Row="0" Background="{DynamicResource SurfaceHighBrush}" Padding="15">
                         <StackPanel>
-                            <TextBlock Text="Rclone Helper" FontSize="18" FontWeight="Bold" 
-                                       Foreground="{DynamicResource ForegroundBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Rclone Helper" FontSize="18" FontWeight="Bold" 
+                                           Foreground="{DynamicResource ForegroundBrush}" />
+                                <TextBlock Text="{Binding AppVersion}" FontSize="11" 
+                                           Foreground="{DynamicResource ForegroundDisabledBrush}"
+                                           VerticalAlignment="Center" Margin="0,2,0,0" />
+                            </StackPanel>
                             <TextBlock Text="网络存储挂载管理" FontSize="11" 
                                        Foreground="{DynamicResource ForegroundMutedBrush}" Margin="0,3,0,0" />
                         </StackPanel>
@@ -154,17 +159,12 @@
                             </StackPanel>
                         </Button>
                     </StackPanel>
-
-                    <!-- 底部信息 -->
-                    <Border Grid.Row="2" Padding="15" Background="{DynamicResource SurfaceHighBrush}">
-                        <TextBlock Text="v1.0.0" FontSize="11" Foreground="{DynamicResource ForegroundDisabledBrush}" />
-                    </Border>
                 </Grid>
             </Border>
 
             <!-- 右侧区域 -->
             <Grid Grid.Column="1" RowDefinitions="Auto,*">
-                <!-- 标题栏（仅窗口控制按钮） -->
+                <!-- 标题栏（窗口控制按钮） -->
                 <Border Grid.Row="0" Background="{DynamicResource TitleBarBackgroundBrush}" Height="32"
                         PointerPressed="TitleBar_PointerPressed">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">

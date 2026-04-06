@@ -142,7 +142,7 @@
 
                 <Border Background="{DynamicResource CardBrush}" Padding="15" CornerRadius="5" Margin="0,0,0,20">
                     <StackPanel Spacing="5">
-                        <TextBlock Text="Rclone Helper v1.0.0"
+                        <TextBlock Text="{Binding AppVersionLabel}"
                                    Foreground="{DynamicResource ForegroundBrush}" />
                         <TextBlock Text="网络存储挂载管理工具"
                                    Foreground="{DynamicResource ForegroundMutedBrush}" />

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -53,6 +54,18 @@ public partial class SettingsPageViewModel : ObservableObject
     /// 程序所在位置
     /// </summary>
     public string AppLocation => PathUtil.AppLocation;
+
+    /// <summary>
+    /// 应用版本号
+    /// </summary>
+    public string AppVersionLabel
+    {
+        get
+        {
+            var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
+            return $"Rclone Helper v{version}";
+        }
+    }
 
     public SettingsPageViewModel(
         ISystemService systemService,
