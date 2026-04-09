@@ -521,10 +521,12 @@ public class MountService
     /// </summary>
     private static string BuildMountArgs(MountInfo mount)
     {
-        // remote path: name: 或 name:/path
+        // remote path: name: 或 name:/path (rclone remote 名称需要转义特殊字符)
+        // 对于包含特殊字符的名称，使用引号包裹
+        var escapedName = EscapeRcloneName(mount.Name);
         var remotePath = string.IsNullOrWhiteSpace(mount.RemotePath)
-            ? $"{mount.Name}:"
-            : $"{mount.Name}:{mount.RemotePath}";
+            ? $"{escapedName}:"
+            : $"{escapedName}:{mount.RemotePath}";
 
         // 基础参数
         var args = $"mount {remotePath} {mount.LocalDrive} --vfs-cache-mode writes --links";
@@ -540,6 +542,20 @@ public class MountService
         }
 
         return args;
+    }
+
+    /// <summary>
+    /// 转义 rclone remote 名称中的特殊字符
+    /// rclone 会自动处理中文和特殊字符，但如果名称包含空格或特殊字符，需要用引号包裹
+    /// </summary>
+    private static string EscapeRcloneName(string name)
+    {
+        // 如果名称包含空格或特殊字符，用引号包裹
+        if (name.Any(c => char.IsWhiteSpace(c) || c == '"' || c == '\'' || c == '\\'))
+        {
+            return $"\"{name}\"";
+        }
+        return name;
     }
 
     /// <summary>
@@ -800,7 +816,9 @@ public class MountService
             await DeleteRcloneConfigAsync(oldName);
         }
 
-        var configArgs = $"config create {mount.Name} {mount.Type} ";
+        // 转义名称中的特殊字符
+        var escapedName = EscapeRcloneName(mount.Name);
+        var configArgs = $"config create {escapedName} {mount.Type} ";
         configArgs += $"url \"{mount.Url}\" ";
 
         if (!string.IsNullOrWhiteSpace(mount.User))
@@ -844,12 +862,13 @@ public class MountService
         try
         {
             _logger.Debug($"删除旧的 rclone 配置: {name}");
+            var escapedName = EscapeRcloneName(name);
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = GetRclonePath(),
-                    Arguments = $"config delete {name}",
+                    Arguments = $"config delete {escapedName}",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,

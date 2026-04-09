@@ -8,17 +8,16 @@
          xmlns:converters="using:RcloneHelper.Converters"
          xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
          xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-         xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
-         xmlns:ai="clr-namespace:Avalonia.Xaml.Interactions.Core;assembly=Avalonia.Xaml.Interactions"
+         xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Xaml.Behaviors.Interactivity"
+         xmlns:ai="clr-namespace:Avalonia.Xaml.Interactions.Core;assembly=Xaml.Behaviors.Interactions"
          mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
          x:Class="RcloneHelper.Views.Windows.MainWindow"
          x:DataType="vm:MainWindowViewModel"
          Title="Rclone Helper"
          Width="1000" Height="700"
-         WindowStartupLocation="CenterScreen"
-         SystemDecorations="None"
-         ExtendClientAreaToDecorationsHint="True"
-         ExtendClientAreaChromeHints="NoChrome"
+          WindowStartupLocation="CenterScreen"
+          WindowDecorations="None"
+          ExtendClientAreaToDecorationsHint="True"
          Background="{DynamicResource BackgroundBrush}">
 
     <Window.Resources>

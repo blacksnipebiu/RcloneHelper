@@ -166,7 +166,7 @@
                             <!-- 基础字段 -->
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="名称:" VerticalAlignment="Center" Margin="5"
                                        Foreground="{DynamicResource ForegroundBrush}" />
-                            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding EditingMount.Name}" Watermark="输入名称" />
+                            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding EditingMount.Name}" PlaceholderText="输入名称" />
 
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="类型:" VerticalAlignment="Center" Margin="5"
                                        Foreground="{DynamicResource ForegroundBrush}" />
@@ -185,24 +185,24 @@
                                   IsVisible="{Binding EditingMount.IsWebDavType}">
                                 <ComboBox Grid.Column="0" SelectedItem="{Binding EditingMount.Protocol}" 
                                           ItemsSource="{Binding ProtocolOptions}" MinWidth="75" Margin="5,5,5,5" />
-                                <TextBox Grid.Column="1" Text="{Binding EditingMount.Host}" Watermark="example.com" Margin="0,5" />
+                                <TextBox Grid.Column="1" Text="{Binding EditingMount.Host}" PlaceholderText="example.com" Margin="0,5" />
                                 <TextBlock Grid.Column="2" Text=":" VerticalAlignment="Center" Margin="0"
                                            Foreground="{DynamicResource ForegroundMutedBrush}" />
-                                <TextBox Grid.Column="3" Text="{Binding EditingMount.Port}" Watermark="443" Width="65" Margin="5,5,5,5" />
+                                <TextBox Grid.Column="3" Text="{Binding EditingMount.Port}" PlaceholderText="443" Width="65" Margin="5,5,5,5" />
                             </Grid>
                             <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,Auto,Auto" 
                                   IsVisible="{Binding EditingMount.IsFtpType}">
-                                <TextBox Grid.Column="0" Text="{Binding EditingMount.Host}" Watermark="ftp.example.com" Margin="0" />
+                                <TextBox Grid.Column="0" Text="{Binding EditingMount.Host}" PlaceholderText="ftp.example.com" Margin="0" />
                                 <TextBlock Grid.Column="1" Text=":" VerticalAlignment="Center" Margin="5,0"
                                            Foreground="{DynamicResource ForegroundMutedBrush}" />
-                                <TextBox Grid.Column="2" Text="{Binding EditingMount.Port}" Watermark="21" Width="60" Margin="0" />
+                                <TextBox Grid.Column="2" Text="{Binding EditingMount.Port}" PlaceholderText="21" Width="60" Margin="0" />
                             </Grid>
                             <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,Auto,Auto" 
                                   IsVisible="{Binding EditingMount.IsSftpType}">
-                                <TextBox Grid.Column="0" Text="{Binding EditingMount.Host}" Watermark="sftp.example.com" Margin="0" />
+                                <TextBox Grid.Column="0" Text="{Binding EditingMount.Host}" PlaceholderText="sftp.example.com" Margin="0" />
                                 <TextBlock Grid.Column="1" Text=":" VerticalAlignment="Center" Margin="5,0"
                                            Foreground="{DynamicResource ForegroundMutedBrush}" />
-                                <TextBox Grid.Column="2" Text="{Binding EditingMount.Port}" Watermark="22" Width="60" Margin="0" />
+                                <TextBox Grid.Column="2" Text="{Binding EditingMount.Port}" PlaceholderText="22" Width="60" Margin="0" />
                             </Grid>
 
                             <!-- WebDAV/FTP/SFTP 路径 -->
@@ -210,21 +210,21 @@
                                        Foreground="{DynamicResource ForegroundBrush}"
                                        IsVisible="{Binding EditingMount.IsNetworkStorageType}" />
                             <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding EditingMount.Path}" 
-                                     Watermark="路径 (可选)"
+                                     PlaceholderText="路径 (可选)"
                                      IsVisible="{Binding EditingMount.IsNetworkStorageType}" />
 
                             <!-- WebDAV/FTP/SFTP 用户名 -->
                             <TextBlock Grid.Row="4" Grid.Column="0" Text="用户名:" VerticalAlignment="Center" Margin="5"
                                        Foreground="{DynamicResource ForegroundBrush}"
                                        IsVisible="{Binding EditingMount.IsNetworkStorageType}" />
-                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding EditingMount.User}" Watermark="可选"
+                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding EditingMount.User}" PlaceholderText="可选"
                                      IsVisible="{Binding EditingMount.IsNetworkStorageType}" />
 
                             <!-- WebDAV/FTP/SFTP 密码 -->
                             <TextBlock Grid.Row="5" Grid.Column="0" Text="密码:" VerticalAlignment="Center" Margin="5"
                                        Foreground="{DynamicResource ForegroundBrush}"
                                        IsVisible="{Binding EditingMount.IsNetworkStorageType}" />
-                            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding EditingMount.Password}" PasswordChar="*" Watermark="可选"
+                            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding EditingMount.Password}" PasswordChar="*" PlaceholderText="可选"
                                      IsVisible="{Binding EditingMount.IsNetworkStorageType}" />
 
                             <!-- WebDAV 服务商 -->
@@ -256,38 +256,38 @@
                             <TextBlock Grid.Row="3" Grid.Column="0" Text="Access Key:" VerticalAlignment="Center" Margin="5"
                                        Foreground="{DynamicResource ForegroundBrush}"
                                        IsVisible="{Binding EditingMount.IsS3Type}" />
-                            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding EditingMount.AccessKeyId}" Watermark="Access Key ID"
+                            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding EditingMount.AccessKeyId}" PlaceholderText="Access Key ID"
                                      IsVisible="{Binding EditingMount.IsS3Type}" />
 
                             <TextBlock Grid.Row="4" Grid.Column="0" Text="Secret Key:" VerticalAlignment="Center" Margin="5"
                                        Foreground="{DynamicResource ForegroundBrush}"
                                        IsVisible="{Binding EditingMount.IsS3Type}" />
-                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding EditingMount.SecretAccessKey}" PasswordChar="*" Watermark="Secret Access Key"
+                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding EditingMount.SecretAccessKey}" PasswordChar="*" PlaceholderText="Secret Access Key"
                                      IsVisible="{Binding EditingMount.IsS3Type}" />
 
                             <TextBlock Grid.Row="5" Grid.Column="0" Text="区域:" VerticalAlignment="Center" Margin="5"
                                        Foreground="{DynamicResource ForegroundBrush}"
                                        IsVisible="{Binding EditingMount.IsS3Type}" />
-                            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding EditingMount.Region}" Watermark="如: us-east-1, ap-northeast-1"
+                             <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding EditingMount.Region}" PlaceholderText="如: us-east-1, ap-northeast-1"
                                      IsVisible="{Binding EditingMount.IsS3Type}" />
 
                             <TextBlock Grid.Row="6" Grid.Column="0" Text="Endpoint:" VerticalAlignment="Center" Margin="5"
                                        Foreground="{DynamicResource ForegroundBrush}"
                                        IsVisible="{Binding EditingMount.IsS3Type}" />
-                            <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding EditingMount.Endpoint}" Watermark="可选，用于兼容S3的服务"
+                            <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding EditingMount.Endpoint}" PlaceholderText="可选，用于兼容S3的服务"
                                      IsVisible="{Binding EditingMount.IsS3Type}" />
 
                             <TextBlock Grid.Row="7" Grid.Column="0" Text="Bucket:" VerticalAlignment="Center" Margin="5"
                                        Foreground="{DynamicResource ForegroundBrush}"
                                        IsVisible="{Binding EditingMount.IsS3Type}" />
-                            <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding EditingMount.RemotePath}" Watermark="bucket-name 或 bucket/path"
+                            <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding EditingMount.RemotePath}" PlaceholderText="bucket-name 或 bucket/path"
                                      IsVisible="{Binding EditingMount.IsS3Type}" />
 
                             <!-- 其他类型 URL 输入 -->
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="URL:" VerticalAlignment="Center" Margin="5"
                                        Foreground="{DynamicResource ForegroundBrush}"
                                        IsVisible="{Binding EditingMount.UseUrlInput}" />
-                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding EditingMount.Url}" Watermark="https://example.com/path"
+                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding EditingMount.Url}" PlaceholderText="https://example.com/path"
                                      IsVisible="{Binding EditingMount.UseUrlInput}" />
 
 <!-- 通用字段：本地盘符 -->

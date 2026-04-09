@@ -54,7 +54,7 @@
                                       ItemsSource="{Binding ProxyProtocolOptions}" MinWidth="80"
                                       VerticalAlignment="Center" Margin="0,5" />
                             <TextBox Grid.Column="2" Text="{Binding ProxyHost}"
-                                     Watermark="127.0.0.1" VerticalAlignment="Center" Margin="5,5" />
+                                     PlaceholderText="127.0.0.1" VerticalAlignment="Center" Margin="5,5" />
                             <TextBlock Grid.Column="3" Text=":" VerticalAlignment="Center"
                                        Foreground="{DynamicResource ForegroundMutedBrush}" Margin="0,0,0,0" />
                         </Grid>
@@ -64,7 +64,7 @@
                                        Foreground="{DynamicResource ForegroundMutedBrush}"
                                        VerticalAlignment="Center" Margin="0,0,10,0" />
                             <TextBox Grid.Column="1" Text="{Binding ProxyPort}"
-                                     Watermark="7890" Width="100" HorizontalAlignment="Left"
+                                     PlaceholderText="7890" Width="100" HorizontalAlignment="Left"
                                      VerticalAlignment="Center" />
                         </Grid>
 
