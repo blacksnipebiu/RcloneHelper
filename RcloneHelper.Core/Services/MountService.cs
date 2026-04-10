@@ -410,6 +410,7 @@ public class MountService
                             // 在 UI 线程上执行状态更新和通知
                             void HandleExit()
                             {
+                                _mountProcesses.TryRemove(name, out _);
                                 if (mount.IsMounted)
                                 {
                                     mount.IsMounted = false;
@@ -417,8 +418,6 @@ public class MountService
                                     _logger.Warning($"挂载意外退出: {name}");
                                     _notificationService.ShowWarning($"挂载 \"{name}\" 已意外断开");
                                 }
-                                _mountProcesses.TryRemove(name, out _);
-                                mount.MountProcess = null;
                             }
 
                             // 如果有同步上下文，在 UI 线程执行；否则直接执行
@@ -429,7 +428,6 @@ public class MountService
                         };
 
             mountProcess.Start();
-            mount.MountProcess = mountProcess;
             _mountProcesses[name] = mountProcess;
             _logger.Debug($"执行命令: {GetRclonePath()} {mountArgs}");
 
@@ -450,7 +448,6 @@ public class MountService
                         mountProcess.WaitForExit(5000);
                     }
                     _mountProcesses.TryRemove(name, out _);
-                    mount.MountProcess = null;
                     mount.IsMounting = false;
                     mount.Status = "已取消";
                     mount.MountCancellationTokenSource = null;
@@ -595,7 +592,7 @@ public class MountService
             return;
         }
 
-        if (!mount.IsMounted && mount.MountProcess == null)
+        if (!mount.IsMounted && !_mountProcesses.ContainsKey(name))
             return;
 
         try
@@ -603,10 +600,10 @@ public class MountService
             _logger.Info($"开始卸载: {name} ({mount.LocalDrive})");
 
             // 终止挂载进程
-            if (mount.MountProcess != null && !mount.MountProcess.HasExited)
+            if (_mountProcesses.TryGetValue(name, out var process) && !process.HasExited)
             {
-                mount.MountProcess.Kill();
-                mount.MountProcess.WaitForExit(5000);
+                process.Kill();
+                process.WaitForExit(5000);
                 _logger.Debug($"已终止挂载进程: {name}");
             }
 
@@ -630,7 +627,6 @@ public class MountService
 
             mount.IsMounted = false;
             mount.Status = "未挂载";
-            mount.MountProcess = null;
             _mountProcesses.TryRemove(name, out _);
             _logger.Info($"卸载成功: {name}");
         }

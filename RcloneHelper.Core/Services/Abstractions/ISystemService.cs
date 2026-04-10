@@ -34,13 +34,6 @@ public interface ISystemService
     string GetAvailableMountPoint();
 
     /// <summary>
-    /// 检查挂载点是否已被占用
-    /// </summary>
-    /// <param name="mountPoint">挂载点路径</param>
-    /// <returns>是否已被占用</returns>
-    bool IsMountPointOccupied(string mountPoint);
-
-    /// <summary>
     /// 获取系统已使用的挂载点列表
     /// </summary>
     /// <returns>已使用的挂载点列表</returns>

@@ -1,7 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using RcloneHelper.Helpers;
 using System;
-using System.Diagnostics;
 using System.Threading;
 
 namespace RcloneHelper.Models;
@@ -269,8 +268,6 @@ public partial class MountInfo : ObservableObject
             return Url;
         }
     }
-
-    public Process? MountProcess { get; set; }
 
     public static MountInfo FromConfig(MountConfig config)
     {

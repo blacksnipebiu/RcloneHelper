@@ -91,36 +91,12 @@ public class LinuxSystemService : ISystemService
         for (int i = 1; i <= 26; i++)
         {
             var mountPoint = Path.Combine(baseDir, $"rclone{i}");
-            if (!IsMountPointOccupied(mountPoint))
+            if (!GetUsedMountPoints().Contains(mountPoint))
                 return mountPoint;
         }
 
         // 回退到默认
         return Path.Combine(baseDir, "rclone");
-    }
-
-    public bool IsMountPointOccupied(string mountPoint)
-    {
-        if (string.IsNullOrEmpty(mountPoint))
-            return true;
-
-        // 检查目录是否存在
-        if (Directory.Exists(mountPoint))
-        {
-            // 检查是否为挂载点
-            try
-            {
-                var mountOutput = ExecuteCommand("mount");
-                return mountOutput.Contains(mountPoint);
-            }
-            catch (Exception ex)
-            {
-                _logger.Debug($"检查挂载点状态失败: {ex.Message}");
-                return true;
-            }
-        }
-
-        return false;
     }
 
     public IReadOnlySet<string> GetUsedMountPoints()
@@ -455,44 +431,6 @@ X-GNOME-Autostart-enabled=true
         process.WaitForExit();
 
         return output;
-    }
-
-    private static DateTime SafeGetStartTime(Process process)
-    {
-        try
-        {
-            return process.StartTime;
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"获取进程启动时间失败: {ex.Message}");
-            return DateTime.MinValue;
-        }
-    }
-
-    private static DateTime GetProcessStartTime(string pid)
-    {
-        try
-        {
-            var statPath = $"/proc/{pid}/stat";
-            if (File.Exists(statPath))
-            {
-                var stat = File.ReadAllText(statPath);
-                var parts = stat.Split(' ');
-                if (parts.Length > 21)
-                {
-                    // starttime 是第22个字段（从0开始索引是21）
-                    // 需要转换为实际时间
-                    // 简化处理，返回当前时间
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"获取进程启动时间失败: {pid}, 错误: {ex.Message}");
-        }
-
-        return DateTime.MinValue;
     }
 
     #endregion

@@ -202,21 +202,6 @@ public class WindowsSystemService : ISystemService
         return "Z:";
     }
 
-    public bool IsMountPointOccupied(string mountPoint)
-    {
-        if (string.IsNullOrEmpty(mountPoint))
-            return true;
-
-        // 检查盘符是否存在
-        if (mountPoint.Length >= 2 && mountPoint[1] == ':')
-        {
-            return Directory.Exists(mountPoint);
-        }
-
-        // 检查目录是否存在
-        return Directory.Exists(mountPoint);
-    }
-
     public IReadOnlySet<string> GetUsedMountPoints()
     {
         var usedDrives = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -530,23 +515,6 @@ public class WindowsSystemService : ISystemService
     }
 
     #endregion
-
-    #endregion
-
-    #region 私有方法
-
-    private static DateTime SafeGetStartTime(Process process)
-    {
-        try
-        {
-            return process.StartTime;
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"获取进程启动时间失败: {ex.Message}");
-            return DateTime.MinValue;
-        }
-    }
 
     #endregion
 }

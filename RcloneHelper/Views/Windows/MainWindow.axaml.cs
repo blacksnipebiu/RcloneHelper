@@ -59,6 +59,13 @@ public partial class MainWindow : Window
             e.Cancel = true;
             HideToTray();
         };
+
+        // 替代 Xaml.Behaviors 的 Opened 事件绑定（AOT 友好）
+        Opened += (_, _) =>
+        {
+            if (viewModel.WindowOpenedCommand.CanExecute(null))
+                viewModel.WindowOpenedCommand.Execute(null);
+        };
     }
 
     #endregion

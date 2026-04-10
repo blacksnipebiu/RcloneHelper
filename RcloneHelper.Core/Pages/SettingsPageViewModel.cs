@@ -199,7 +199,7 @@ public partial class SettingsPageViewModel : ObservableObject
         {
             var exportPath = Path.Combine(AppDataPath, $"rclonehelper_backup_{DateTime.Now:yyyyMMdd_HHmmss}.json");
             var configs = _mountService.Mounts.Select(m => m.ToConfig()).ToList();
-            var json = JsonSerializer.Serialize(configs, new JsonSerializerOptions { WriteIndented = true });
+            var json = JsonSerializer.Serialize(configs, AppJsonSerializerContext.Default.ListMountConfig);
             File.WriteAllText(exportPath, json);
 
             _notificationService.ShowSuccess($"配置已导出到: {exportPath}");
@@ -242,7 +242,7 @@ public partial class SettingsPageViewModel : ObservableObject
             var fileName = Path.GetFileName(importPath);
 
             var json = File.ReadAllText(importPath);
-            var configs = JsonSerializer.Deserialize<List<MountConfig>>(json);
+            var configs = JsonSerializer.Deserialize(json, AppJsonSerializerContext.Default.ListMountConfig);
 
             if (configs == null || configs.Count == 0)
             {
