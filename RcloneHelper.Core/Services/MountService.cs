@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -24,7 +24,7 @@ public class MountService
     private readonly ILoggerService _logger;
     private readonly IConfigService _configService;
     private readonly INotificationService _notificationService;
-    private readonly Dictionary<string, Process> _mountProcesses = new();
+    private readonly ConcurrentDictionary<string, Process> _mountProcesses = new();
     private readonly SynchronizationContext? _syncContext;
 
     /// <summary>
@@ -105,9 +105,10 @@ public class MountService
                     return path;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // 忽略错误
+            // 查找 rclone 路径失败，返回 null 让调用者使用默认路径
+            System.Diagnostics.Debug.WriteLine($"查找 rclone 路径失败: {ex.Message}");
         }
 
         return null;
@@ -154,7 +155,7 @@ public class MountService
         {
             var configs = Mounts.Select(m => m.ToConfig()).ToList();
             var json = JsonSerializer.Serialize(configs, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(PathUtil.MountsConfigPath, json);
+            PathUtil.AtomicWriteAllText(PathUtil.MountsConfigPath, json);
         }
         catch (Exception ex)
         {
@@ -415,7 +416,7 @@ public class MountService
                                     _logger.Warning($"挂载意外退出: {name}");
                                     _notificationService.ShowWarning($"挂载 \"{name}\" 已意外断开");
                                 }
-                                _mountProcesses.Remove(name);
+                                _mountProcesses.TryRemove(name, out _);
                                 mount.MountProcess = null;
                             }
 
@@ -447,7 +448,7 @@ public class MountService
                         mountProcess.Kill();
                         mountProcess.WaitForExit(5000);
                     }
-                    _mountProcesses.Remove(name);
+                    _mountProcesses.TryRemove(name, out _);
                     mount.MountProcess = null;
                     mount.IsMounting = false;
                     mount.Status = "已取消";
@@ -629,7 +630,7 @@ public class MountService
             mount.IsMounted = false;
             mount.Status = "未挂载";
             mount.MountProcess = null;
-            _mountProcesses.Remove(name);
+            _mountProcesses.TryRemove(name, out _);
             _logger.Info($"卸载成功: {name}");
         }
         catch (Exception ex)
@@ -660,9 +661,9 @@ public class MountService
             {
                 await MountAsync(mount.Name);
             }
-            catch
+            catch (Exception ex)
             {
-                // 继续挂载其他项
+                _logger.Warning($"批量挂载时 {mount.Name} 失败: {ex.Message}");
             }
         }
     }
@@ -679,9 +680,9 @@ public class MountService
             {
                 Unmount(mount.Name);
             }
-            catch
+            catch (Exception ex)
             {
-                // 继续卸载其他项
+                _logger.Warning($"批量卸载时 {mount.Name} 失败: {ex.Message}");
             }
         }
     }
@@ -713,9 +714,10 @@ public class MountService
                         mount.MountProcess = Process.GetProcessById(active.ProcessId);
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
                     // 进程可能已终止
+                    _logger.Debug($"关联进程失败: {mount.Name}, 进程ID {active.ProcessId}, 错误: {ex.Message}");
                 }
             }
             else
@@ -770,7 +772,10 @@ public class MountService
                 });
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.Warning($"获取活跃挂载失败: {ex.Message}");
+        }
 
         return mounts;
     }

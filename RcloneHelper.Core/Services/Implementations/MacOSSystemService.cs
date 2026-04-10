@@ -19,6 +19,12 @@ public class MacOSSystemService : ISystemService
     private const string AppName = "com.rclonehelper.app";
     private const string LaunchAgentsDir = "Library/LaunchAgents";
     private const string DefaultMountBase = "/Volumes";
+    private readonly ILoggerService _logger;
+
+    public MacOSSystemService(ILoggerService logger)
+    {
+        _logger = logger;
+    }
 
     #region ISystemService 实现
 
@@ -50,8 +56,9 @@ public class MacOSSystemService : ISystemService
                 return RemoveLaunchAgent();
             }
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Warning($"设置开机启动失败: {ex.Message}");
             return false;
         }
     }
@@ -95,8 +102,9 @@ public class MacOSSystemService : ISystemService
                 var mountOutput = ExecuteCommand("mount");
                 return mountOutput.Contains(mountPoint);
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.Debug($"检查挂载点状态失败: {ex.Message}");
                 return true;
             }
         }
@@ -130,9 +138,9 @@ public class MacOSSystemService : ISystemService
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // 忽略错误
+            _logger.Debug($"获取挂载点列表失败: {ex.Message}");
         }
 
         return usedMounts;
@@ -174,8 +182,9 @@ public class MacOSSystemService : ISystemService
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Debug($"ps 命令失败，使用备选方案: {ex.Message}");
             // 使用 Process.GetProcessesByName 作为备选
             try
             {
@@ -190,9 +199,9 @@ public class MacOSSystemService : ISystemService
                     });
                 }
             }
-            catch
+            catch (Exception innerEx)
             {
-                // 忽略错误
+                _logger.Warning($"进程枚举失败: {innerEx.Message}");
             }
         }
 
@@ -208,8 +217,9 @@ public class MacOSSystemService : ISystemService
             process.WaitForExit(5000);
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Warning($"终止进程失败: {processId}, 错误: {ex.Message}");
             return false;
         }
     }
@@ -234,8 +244,9 @@ public class MacOSSystemService : ISystemService
                 Directory.Exists("/System/Library/Extensions/fusefs.kext")
             ) ? DependencyStatus.Installed : DependencyStatus.NotInstalled;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Debug($"检测 macFUSE 失败: {ex.Message}");
             dependency.Status = DependencyStatus.NotInstalled;
         }
 
@@ -289,8 +300,9 @@ public class MacOSSystemService : ISystemService
 
             dependency.Status = isInstalled ? DependencyStatus.Installed : DependencyStatus.NotInstalled;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Debug($"检测 rclone 失败: {ex.Message}");
             dependency.Status = DependencyStatus.NotInstalled;
         }
 
@@ -309,9 +321,9 @@ public class MacOSSystemService : ISystemService
                     return path;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // 忽略错误
+            System.Diagnostics.Debug.WriteLine($"FindRcloneInPath 失败: {ex.Message}");
         }
 
         return null;
@@ -324,8 +336,9 @@ public class MacOSSystemService : ISystemService
             var output = ExecuteCommand($"{rclonePath} version 2>/dev/null");
             return !string.IsNullOrWhiteSpace(output);
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"TestRcloneExecution 失败: {rclonePath}, 错误: {ex.Message}");
             return false;
         }
     }
@@ -379,8 +392,9 @@ public class MacOSSystemService : ISystemService
 
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Error($"创建 LaunchAgent 失败: {ex.Message}");
             return false;
         }
     }
@@ -400,8 +414,9 @@ public class MacOSSystemService : ISystemService
 
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Error($"删除 LaunchAgent 失败: {ex.Message}");
             return false;
         }
     }
@@ -434,8 +449,9 @@ public class MacOSSystemService : ISystemService
         {
             return process.StartTime;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"获取进程启动时间失败: {ex.Message}");
             return DateTime.MinValue;
         }
     }

@@ -1,3 +1,5 @@
+using System.Linq;
+
 namespace RcloneHelper.Models;
 
 /// <summary>
@@ -5,6 +7,10 @@ namespace RcloneHelper.Models;
     /// </summary>
     public class AppConfig
     {
+        private const int MinPort = 1;
+        private const int MaxPort = 65535;
+        private static readonly string[] ValidProtocols = { "http", "https", "socks5" };
+
         /// <summary>
         /// 启动时自动挂载所有存储
         /// </summary>
@@ -28,7 +34,16 @@ namespace RcloneHelper.Models;
     /// <summary>
     /// 代理协议 (http, https, socks5)
     /// </summary>
-    public string ProxyProtocol { get; set; } = "http";
+    private string _proxyProtocol = "http";
+    public string ProxyProtocol
+    {
+        get => _proxyProtocol;
+        set
+        {
+            var normalizedValue = value?.ToLowerInvariant() ?? "";
+            _proxyProtocol = ValidProtocols.Contains(normalizedValue) ? normalizedValue : "http";
+        }
+    }
 
     /// <summary>
     /// 代理服务器地址 (如 127.0.0.1)
@@ -38,16 +53,27 @@ namespace RcloneHelper.Models;
     /// <summary>
     /// 代理服务器端口 (如 7890)
     /// </summary>
-    public int ProxyPort { get; set; } = 7890;
+    private int _proxyPort = 7890;
+    public int ProxyPort
+    {
+        get => _proxyPort;
+        set => _proxyPort = value >= MinPort && value <= MaxPort ? value : 7890;
+    }
 
     /// <summary>
     /// 获取完整的代理 URL
     /// </summary>
     public string GetProxyUrl()
     {
-        if (!ProxyEnabled || string.IsNullOrWhiteSpace(ProxyHost))
+        if (!ProxyEnabled)
             return "";
 
-        return $"{ProxyProtocol}://{ProxyHost}:{ProxyPort}";
+        if (string.IsNullOrWhiteSpace(ProxyHost))
+            return "";
+
+        if (ProxyPort < MinPort || ProxyPort > MaxPort)
+            return "";
+
+        return $"{ProxyProtocol}://{ProxyHost.Trim()}:{ProxyPort}";
     }
 }

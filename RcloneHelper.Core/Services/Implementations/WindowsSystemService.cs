@@ -55,8 +55,9 @@ public class WindowsSystemService : ISystemService
                 process.WaitForExit(5000);
                 return process.ExitCode == 0;
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.Warning($"检查开机自启状态失败: {ex.Message}");
                 return false;
             }
         }
@@ -175,9 +176,9 @@ public class WindowsSystemService : ISystemService
             process.Start();
             process.WaitForExit(5000);
         }
-        catch
+        catch (Exception ex)
         {
-            // 忽略错误
+            _logger.Debug($"静默删除开机启动任务失败: {ex.Message}");
         }
     }
 
@@ -227,9 +228,9 @@ public class WindowsSystemService : ISystemService
                 usedDrives.Add(drive.Name.TrimEnd('\\'));
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // 忽略权限错误
+            _logger.Debug($"获取驱动器列表失败: {ex.Message}");
         }
 
         return usedDrives;
@@ -242,6 +243,17 @@ public class WindowsSystemService : ISystemService
     public IEnumerable<ProcessInfo> FindProcesses(string processName)
     {
         var processes = new List<ProcessInfo>();
+
+        // 验证进程名称，防止 WMI 注入
+        if (string.IsNullOrWhiteSpace(processName))
+            return processes;
+
+        // 进程名只能包含字母、数字、下划线和连字符
+        if (!System.Text.RegularExpressions.Regex.IsMatch(processName, @"^[a-zA-Z0-9_-]+$"))
+        {
+            _logger.Warning($"无效的进程名称: {processName}");
+            return processes;
+        }
 
         try
         {
@@ -262,7 +274,10 @@ public class WindowsSystemService : ISystemService
                         var process = Process.GetProcessById(processId);
                         startTime = process.StartTime;
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        _logger.Debug($"获取进程启动时间失败: {processId}, 错误: {ex.Message}");
+                    }
 
                     processes.Add(new ProcessInfo
                     {
@@ -272,14 +287,15 @@ public class WindowsSystemService : ISystemService
                         StartTime = startTime
                     });
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // 忽略单个进程的错误
+                    _logger.Debug($"处理进程失败: {ex.Message}");
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Warning($"WMI 查询失败: {ex.Message}");
             // WMI 查询失败，尝试使用 Process.GetProcesses 作为备选方案
             try
             {
@@ -294,9 +310,9 @@ public class WindowsSystemService : ISystemService
                     });
                 }
             }
-            catch
+            catch (Exception innerEx)
             {
-                // 忽略错误
+                _logger.Debug($"备份进程枚举失败: {innerEx.Message}");
             }
         }
 
@@ -312,8 +328,9 @@ public class WindowsSystemService : ISystemService
             process.WaitForExit(5000);
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Warning($"终止进程失败: {processId}, 错误: {ex.Message}");
             return false;
         }
     }
@@ -380,8 +397,9 @@ public class WindowsSystemService : ISystemService
 
             dependency.Status = isInstalled ? DependencyStatus.Installed : DependencyStatus.NotInstalled;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Debug($"检测 WinFsp 失败: {ex.Message}");
             dependency.Status = DependencyStatus.NotInstalled;
         }
 
@@ -435,8 +453,9 @@ public class WindowsSystemService : ISystemService
 
             dependency.Status = isInstalled ? DependencyStatus.Installed : DependencyStatus.NotInstalled;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Debug($"检测 rclone 失败: {ex.Message}");
             dependency.Status = DependencyStatus.NotInstalled;
         }
 
@@ -471,9 +490,10 @@ public class WindowsSystemService : ISystemService
                     return path;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // 忽略错误
+            // 查找 rclone 路径失败，返回 null 让调用者使用默认路径
+            System.Diagnostics.Debug.WriteLine($"FindRcloneInPath 失败: {ex.Message}");
         }
 
         return null;
@@ -500,8 +520,9 @@ public class WindowsSystemService : ISystemService
             process.WaitForExit(5000);
             return process.ExitCode == 0;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"TestRcloneExecution 失败: {rclonePath}, 错误: {ex.Message}");
             return false;
         }
     }
@@ -518,8 +539,9 @@ public class WindowsSystemService : ISystemService
         {
             return process.StartTime;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"获取进程启动时间失败: {ex.Message}");
             return DateTime.MinValue;
         }
     }

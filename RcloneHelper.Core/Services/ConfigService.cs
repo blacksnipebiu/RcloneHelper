@@ -77,7 +77,7 @@ public class ConfigService : IConfigService
         {
             var settingsPath = PathUtil.SettingsPath;
             var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(settingsPath, json);
+            PathUtil.AtomicWriteAllText(settingsPath, json);
         }
         catch (Exception ex)
         {

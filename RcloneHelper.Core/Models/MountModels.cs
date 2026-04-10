@@ -8,6 +8,9 @@ namespace RcloneHelper.Models;
 
 public class MountConfig
 {
+    private const int MinPort = 1;
+    private const int MaxPort = 65535;
+
     public string Name { get; set; } = "";
     public string RemotePath { get; set; } = "";
     public string LocalDrive { get; set; } = "Z:";
@@ -22,7 +25,14 @@ public class MountConfig
     // URL 组件字段
     public bool UseHttps { get; set; } = true;
     public string Host { get; set; } = "";
-    public int Port { get; set; } = 443;
+
+    private int _port = 443;
+    public int Port
+    {
+        get => _port;
+        set => _port = value >= MinPort && value <= MaxPort ? value : 443;
+    }
+
     public string Path { get; set; } = "";
 
     // S3 专用字段
@@ -156,6 +166,21 @@ public partial class MountInfo : ObservableObject
 
     [ObservableProperty]
     private int _port = 443;
+
+    private const int MinPort = 1;
+    private const int MaxPort = 65535;
+
+    /// <summary>
+    /// 端口值变更时验证并纠正
+    /// </summary>
+    partial void OnPortChanged(int value)
+    {
+        // 如果端口无效，重置为默认值
+        if (value < MinPort || value > MaxPort)
+        {
+            Port = DefaultPort;
+        }
+    }
 
     [ObservableProperty]
     private string _path = "";

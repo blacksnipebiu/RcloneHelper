@@ -77,10 +77,10 @@ public static class ServiceCollectionExtensions
             return new WindowsSystemService(logger);
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return new LinuxSystemService();
+            return new LinuxSystemService(logger);
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            return new MacOSSystemService();
+            return new MacOSSystemService(logger);
 
         // 不支持的平台，返回 Windows 实现作为默认
         return new WindowsSystemService(logger);

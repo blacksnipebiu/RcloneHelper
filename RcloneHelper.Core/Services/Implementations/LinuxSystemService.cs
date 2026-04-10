@@ -20,6 +20,12 @@ public class LinuxSystemService : ISystemService
     private const string AutostartDir = ".config/autostart";
     private const string SystemdUserDir = ".config/systemd/user";
     private const string DefaultMountBase = "/mnt";
+    private readonly ILoggerService _logger;
+
+    public LinuxSystemService(ILoggerService logger)
+    {
+        _logger = logger;
+    }
 
     #region ISystemService 实现
 
@@ -57,8 +63,9 @@ public class LinuxSystemService : ISystemService
                 return RemoveAutostartEntry();
             }
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Warning($"设置开机启动失败: {ex.Message}");
             return false;
         }
     }
@@ -105,8 +112,9 @@ public class LinuxSystemService : ISystemService
                 var mountOutput = ExecuteCommand("mount");
                 return mountOutput.Contains(mountPoint);
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.Debug($"检查挂载点状态失败: {ex.Message}");
                 return true;
             }
         }
@@ -134,9 +142,9 @@ public class LinuxSystemService : ISystemService
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // 忽略错误
+            _logger.Debug($"读取 /proc/mounts 失败: {ex.Message}");
         }
 
         return usedMounts;
@@ -179,14 +187,15 @@ public class LinuxSystemService : ISystemService
                         StartTime = GetProcessStartTime(dir.Name)
                     });
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // 忽略权限错误
+                    _logger.Debug($"读取进程 {processId} 信息失败: {ex.Message}");
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Debug($"遍历 /proc 失败，使用备选方案: {ex.Message}");
             // 使用 Process.GetProcessesByName 作为备选
             try
             {
@@ -201,9 +210,9 @@ public class LinuxSystemService : ISystemService
                     });
                 }
             }
-            catch
+            catch (Exception innerEx)
             {
-                // 忽略错误
+                _logger.Warning($"进程枚举失败: {innerEx.Message}");
             }
         }
 
@@ -219,8 +228,9 @@ public class LinuxSystemService : ISystemService
             process.WaitForExit(5000);
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Warning($"终止进程失败: {processId}, 错误: {ex.Message}");
             return false;
         }
     }
@@ -240,8 +250,9 @@ public class LinuxSystemService : ISystemService
         {
             dependency.Status = File.Exists("/dev/fuse") ? DependencyStatus.Installed : DependencyStatus.NotInstalled;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Debug($"检查 FUSE 失败: {ex.Message}");
             dependency.Status = DependencyStatus.NotInstalled;
         }
 
@@ -295,8 +306,9 @@ public class LinuxSystemService : ISystemService
 
             dependency.Status = isInstalled ? DependencyStatus.Installed : DependencyStatus.NotInstalled;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Debug($"检测 rclone 失败: {ex.Message}");
             dependency.Status = DependencyStatus.NotInstalled;
         }
 
@@ -315,9 +327,9 @@ public class LinuxSystemService : ISystemService
                     return path;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // 忽略错误
+            System.Diagnostics.Debug.WriteLine($"FindRcloneInPath 失败: {ex.Message}");
         }
 
         return null;
@@ -330,8 +342,9 @@ public class LinuxSystemService : ISystemService
             var output = ExecuteCommand($"{rclonePath} version 2>/dev/null");
             return !string.IsNullOrWhiteSpace(output);
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"TestRcloneExecution 失败: {rclonePath}, 错误: {ex.Message}");
             return false;
         }
     }
@@ -383,8 +396,9 @@ X-GNOME-Autostart-enabled=true
 
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Error($"创建开机启动项失败: {ex.Message}");
             return false;
         }
     }
@@ -403,8 +417,9 @@ X-GNOME-Autostart-enabled=true
 
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Error($"删除开机启动项失败: {ex.Message}");
             return false;
         }
     }
@@ -452,8 +467,9 @@ X-GNOME-Autostart-enabled=true
         {
             return process.StartTime;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"获取进程启动时间失败: {ex.Message}");
             return DateTime.MinValue;
         }
     }
@@ -475,7 +491,10 @@ X-GNOME-Autostart-enabled=true
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"获取进程启动时间失败: {pid}, 错误: {ex.Message}");
+        }
 
         return DateTime.MinValue;
     }
