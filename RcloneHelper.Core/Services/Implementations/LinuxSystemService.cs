@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using RcloneHelper.Helpers;
 using RcloneHelper.Models;
@@ -29,7 +30,7 @@ public class LinuxSystemService : ISystemService
 
     #region ISystemService 实现
 
-    public PlatformType Platform => PlatformType.Linux;
+    public OSPlatform Platform => OSPlatform.Linux;
 
     public string AppExecutablePath => System.Reflection.Assembly.GetExecutingAssembly().Location;
 
@@ -150,90 +151,85 @@ public class LinuxSystemService : ISystemService
         return usedMounts;
     }
 
+    public IReadOnlyDictionary<string, string> GetActiveMountNames()
+    {
+        var mounts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            // 从 /proc/mounts 获取挂载信息
+            // rclone 挂载格式: rclone:<挂载名> <挂载点> fuse.rclone ...
+            if (File.Exists("/proc/mounts"))
+            {
+                var lines = File.ReadAllLines("/proc/mounts");
+                _logger.Debug($"[GetActiveMounts] /proc/mounts 共有 {lines.Length} 行");
+
+                foreach (var line in lines)
+                {
+                    // 格式: rclone:挂载名 /mnt/rclone fuse.rclone ...
+                    // 或: rclone:挂载名 /home/user/mnt fuse.rclone ...
+                    if (line.StartsWith("rclone:"))
+                    {
+                        var parts = line.Split(' ');
+                        if (parts.Length >= 2)
+                        {
+                            var remote = parts[0]; // rclone:挂载名
+                            var mountPoint = parts[1];
+
+                            if (remote.StartsWith("rclone:"))
+                            {
+                                var name = remote.Substring("rclone:".Length);
+                                mounts[name] = mountPoint;
+                                _logger.Debug($"[GetActiveMounts] 发现 rclone 挂载: {name} -> {mountPoint}");
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // 备用方案: 使用 mount 命令
+                _logger.Debug("[GetActiveMounts] /proc/mounts 不存在，使用 mount 命令");
+                var output = ExecuteCommand("mount 2>/dev/null | grep '^rclone:'");
+                if (!string.IsNullOrWhiteSpace(output))
+                {
+                    var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var line in lines)
+                    {
+                        // 格式: rclone:挂载名 on /mnt/rclone type fuse.rclone (...)
+                        var onIndex = line.IndexOf(" on ");
+                        if (onIndex > 0)
+                        {
+                            var remote = line.Substring(0, onIndex);
+                            var rest = line.Substring(onIndex + 4);
+                            
+                            if (remote.StartsWith("rclone:"))
+                            {
+                                var name = remote.Substring("rclone:".Length);
+                                // 提取挂载点 (在 " type" 之前)
+                                var typeIndex = rest.IndexOf(" type");
+                                var mountPoint = typeIndex > 0 ? rest.Substring(0, typeIndex) : rest.Split(' ')[0];
+                                mounts[name] = mountPoint;
+                                _logger.Debug($"[GetActiveMounts] (mount命令) 发现 rclone 挂载: {name} -> {mountPoint}");
+                            }
+                        }
+                    }
+                }
+            }
+
+            _logger.Debug($"[GetActiveMounts] 共发现 {mounts.Count} 个 rclone 挂载");
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"获取活动挂载失败: {ex.Message}");
+        }
+
+        return mounts;
+    }
+
     #endregion
 
-    #region 进程管理
-
-    public IEnumerable<ProcessInfo> FindProcesses(string processName)
-    {
-        var processes = new List<ProcessInfo>();
-
-        try
-        {
-            // 使用 /proc 文件系统获取进程信息
-            var procDir = new DirectoryInfo("/proc");
-            foreach (var dir in procDir.GetDirectories())
-            {
-                if (!int.TryParse(dir.Name, out var processId))
-                    continue;
-
-                try
-                {
-                    var cmdlinePath = Path.Combine("/proc", dir.Name, "cmdline");
-                    if (!File.Exists(cmdlinePath))
-                        continue;
-
-                    var cmdline = File.ReadAllText(cmdlinePath).Replace('\0', ' ').Trim();
-
-                    // 检查是否是目标进程
-                    if (!cmdline.Contains(processName, StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    processes.Add(new ProcessInfo
-                    {
-                        ProcessId = processId,
-                        ProcessName = processName,
-                        CommandLine = cmdline,
-                        StartTime = GetProcessStartTime(dir.Name)
-                    });
-                }
-                catch (Exception ex)
-                {
-                    _logger.Debug($"读取进程 {processId} 信息失败: {ex.Message}");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.Debug($"遍历 /proc 失败，使用备选方案: {ex.Message}");
-            // 使用 Process.GetProcessesByName 作为备选
-            try
-            {
-                foreach (var process in Process.GetProcessesByName(processName))
-                {
-                    processes.Add(new ProcessInfo
-                    {
-                        ProcessId = process.Id,
-                        ProcessName = process.ProcessName,
-                        CommandLine = "",
-                        StartTime = SafeGetStartTime(process)
-                    });
-                }
-            }
-            catch (Exception innerEx)
-            {
-                _logger.Warning($"进程枚举失败: {innerEx.Message}");
-            }
-        }
-
-        return processes;
-    }
-
-    public bool TerminateProcess(int processId)
-    {
-        try
-        {
-            var process = Process.GetProcessById(processId);
-            process.Kill();
-            process.WaitForExit(5000);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.Warning($"终止进程失败: {processId}, 错误: {ex.Message}");
-            return false;
-        }
-    }
+    #region 系统信息
 
     public SystemDependency? GetFuseDependency()
     {

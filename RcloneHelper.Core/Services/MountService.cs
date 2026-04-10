@@ -325,7 +325,7 @@ public class MountService
 
     private string GenerateAvailableMountPoint(HashSet<string> usedMountPoints)
     {
-        if (_systemService.Platform == PlatformType.Windows)
+        if (_systemService.Platform == OSPlatform.Windows)
         {
             // Windows: 生成盘符
             for (char c = 'Z'; c >= 'D'; c--)
@@ -339,7 +339,7 @@ public class MountService
         else
         {
             // Linux/macOS: 生成目录路径
-            var baseDir = _systemService.Platform == PlatformType.macOS ? "/Volumes" : "/mnt";
+            var baseDir = _systemService.Platform == OSPlatform.OSX ? "/Volumes" : "/mnt";
             for (int i = 1; i <= 26; i++)
             {
                 var mountPoint = $"{baseDir}/rclone{i}";
@@ -692,39 +692,25 @@ public class MountService
     /// </summary>
     public void RefreshMountStatus()
     {
-        var activeMounts = GetActiveMounts();
+        var activeMounts = _systemService.GetActiveMountNames();
 
         foreach (var mount in Mounts)
         {
-            // remote 名称已经去掉了冒号，直接匹配配置名称
-            var active = activeMounts.FirstOrDefault(a => a.Name == mount.Name);
+            // 查找匹配的挂载点 (名称完全匹配或名称以 mount.Name 开头)
+            var mountPoint = activeMounts.FirstOrDefault(m =>
+                m.Key.Equals(mount.Name, StringComparison.OrdinalIgnoreCase) ||
+                m.Key.StartsWith(mount.Name + ":", StringComparison.OrdinalIgnoreCase)).Value;
 
-            if (active != null)
+            if (!string.IsNullOrEmpty(mountPoint))
             {
                 mount.IsMounted = true;
-                // 使用实际挂载的盘符
-                mount.LocalDrive = active.LocalDrive;
+                mount.LocalDrive = mountPoint;
                 mount.Status = $"已挂载到 {mount.LocalDrive}";
-
-                // 尝试关联进程
-                try
-                {
-                    if (mount.MountProcess == null || mount.MountProcess.HasExited)
-                    {
-                        mount.MountProcess = Process.GetProcessById(active.ProcessId);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // 进程可能已终止
-                    _logger.Debug($"关联进程失败: {mount.Name}, 进程ID {active.ProcessId}, 错误: {ex.Message}");
-                }
             }
             else
             {
                 mount.IsMounted = false;
                 mount.Status = "未挂载";
-                mount.MountProcess = null;
             }
         }
     }
@@ -734,56 +720,9 @@ public class MountService
     #region 状态检查
 
     /// <summary>
-    /// 检查挂载状态（通过查询 rclone 进程）
-    /// </summary>
-    /// <returns>当前活跃的挂载列表</returns>
-    public List<ActiveMountInfo> GetActiveMounts()
-    {
-        var mounts = new List<ActiveMountInfo>();
-
-        try
-        {
-            foreach (var process in _systemService.FindProcesses("rclone"))
-            {
-                var cmdLine = process.CommandLine;
-
-                // 使用正则提取: mount 之后的两个非选项参数 (remote 和 mountpoint)
-                // 格式: rclone [opts] mount [opts] remote:path X:
-                var match = Regex.Match(cmdLine,
-                    @"\bmount\b\s+(?:-[^\s]+\s+)*(\S+)\s+(?:-[^\s]+\s+)*([A-Za-z]:)",
-                    RegexOptions.IgnoreCase);
-
-                if (!match.Success)
-                    continue;
-
-                var remote = match.Groups[1].Value;
-                var mountpoint = match.Groups[2].Value;
-
-                // 去掉 remote 的冒号部分 (myremote: → myremote, myremote:/path → myremote)
-                var colonIndex = remote.IndexOf(':');
-                if (colonIndex > 0)
-                    remote = remote.Substring(0, colonIndex);
-
-                mounts.Add(new ActiveMountInfo
-                {
-                    Name = remote,
-                    LocalDrive = mountpoint,
-                    ProcessId = process.ProcessId
-                });
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.Warning($"获取活跃挂载失败: {ex.Message}");
-        }
-
-        return mounts;
-    }
-
-    /// <summary>
     /// 获取当前平台类型
     /// </summary>
-    public PlatformType Platform => _systemService.Platform;
+    public OSPlatform Platform => _systemService.Platform;
 
     #endregion
 
@@ -890,14 +829,4 @@ public class MountService
     }
 
     #endregion
-}
-
-/// <summary>
-/// 活跃挂载信息
-/// </summary>
-public class ActiveMountInfo
-{
-    public string Name { get; set; } = "";
-    public string LocalDrive { get; set; } = "";
-    public int ProcessId { get; set; }
 }

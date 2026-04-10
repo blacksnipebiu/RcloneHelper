@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Management;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Text;
 using RcloneHelper.Helpers;
 using RcloneHelper.Models;
 using RcloneHelper.Services.Abstractions;
@@ -27,7 +28,7 @@ public class WindowsSystemService : ISystemService
 
     #region ISystemService 实现
 
-    public PlatformType Platform => PlatformType.Windows;
+    public OSPlatform Platform => OSPlatform.Windows;
 
     public string AppExecutablePath => Environment.ProcessPath ?? "";
 
@@ -236,104 +237,105 @@ public class WindowsSystemService : ISystemService
         return usedDrives;
     }
 
+    public IReadOnlyDictionary<string, string> GetActiveMountNames()
+    {
+        var mounts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            // 使用 net use 命令获取网络驱动器映射
+            // rclone 挂载的驱动器格式: \\rclone\<挂载名> -> 盘符
+            var systemEncoding = CodePagesEncodingProvider.Instance.GetEncoding(0);
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "net",
+                    Arguments = "use",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = systemEncoding,
+                    StandardErrorEncoding = systemEncoding
+                }
+            };
+
+            process.Start();
+            var output = process.StandardOutput.ReadToEnd();
+            process.WaitForExit(5000);
+
+            // 解析输出
+            // 格式示例 (Windows 中文):
+            // 状态       本地        远程                      网络
+            // -------------------------------------------------------------------------------
+            //            Y:        \\rclone\飞牛             WinFsp.Np
+            //            Z:        \\rclone\alist            WinFsp.Np
+            // OK           Y:        \\rclone\飞牛             WinFsp.Np (已连接状态)
+            var lines = output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+            _logger.Debug($"[GetActiveMounts] net use 输出 {lines.Length} 行");
+
+            foreach (var line in lines)
+            {
+                // 跳过标题行和分隔线
+                if (line.Contains("本地") || line.Contains("Local") || line.TrimStart().StartsWith("-") || string.IsNullOrWhiteSpace(line))
+                    continue;
+
+                // 解析: "           Z:        \\rclone\alist            WinFsp.Np"
+                // 或: "OK           Z:        \\rclone\alist            WinFsp.Np"
+                var trimmedLine = line.TrimStart();
+                
+                // 查找盘符 (格式: X:)
+                var colonIndex = trimmedLine.IndexOf(':');
+                if (colonIndex <= 0) continue;
+                
+                // 盘符可能是 "X:" 或在状态之后 "OK       X:"
+                // 找到盘符位置
+                int driveStart;
+                for (driveStart = colonIndex - 1; driveStart >= 0; driveStart--)
+                {
+                    if (!char.IsLetter(trimmedLine[driveStart]))
+                    {
+                        driveStart++;
+                        break;
+                    }
+                }
+                if (driveStart < 0) driveStart = 0;
+                
+                var localDrive = trimmedLine.Substring(driveStart, colonIndex - driveStart + 1);
+                
+                // 盘符后的内容
+                var afterDrive = trimmedLine.Substring(colonIndex + 1).TrimStart();
+                if (string.IsNullOrEmpty(afterDrive)) continue;
+                
+                // 下一个字段是远程路径
+                var parts = afterDrive.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 0) continue;
+                
+                var remote = parts[0];
+
+                // 检查是否是 rclone 挂载: \\rclone\<名称>
+                if (remote.StartsWith(@"\\rclone\", StringComparison.OrdinalIgnoreCase))
+                {
+                    var name = remote.Substring(@"\\rclone\".Length);
+                    mounts[name] = localDrive;
+                    _logger.Debug($"[GetActiveMounts] 发现 rclone 挂载: {name} -> {localDrive}");
+                }
+            }
+
+            _logger.Debug($"[GetActiveMounts] 共发现 {mounts.Count} 个 rclone 挂载");
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"获取活动挂载失败: {ex.Message}");
+        }
+
+        return mounts;
+    }
+
     #endregion
 
-    #region 进程管理
-
-    public IEnumerable<ProcessInfo> FindProcesses(string processName)
-    {
-        var processes = new List<ProcessInfo>();
-
-        // 验证进程名称，防止 WMI 注入
-        if (string.IsNullOrWhiteSpace(processName))
-            return processes;
-
-        // 进程名只能包含字母、数字、下划线和连字符
-        if (!System.Text.RegularExpressions.Regex.IsMatch(processName, @"^[a-zA-Z0-9_-]+$"))
-        {
-            _logger.Warning($"无效的进程名称: {processName}");
-            return processes;
-        }
-
-        try
-        {
-            // 使用 WMI 获取进程命令行（Windows 特有）
-            var searcher = new ManagementObjectSearcher(
-                $"SELECT ProcessId, Name, CommandLine FROM Win32_Process WHERE Name = '{processName}.exe'");
-
-            foreach (var obj in searcher.Get())
-            {
-                try
-                {
-                    var processId = Convert.ToInt32(obj["ProcessId"]);
-                    var commandLine = obj["CommandLine"]?.ToString() ?? "";
-
-                    DateTime startTime = DateTime.MinValue;
-                    try
-                    {
-                        var process = Process.GetProcessById(processId);
-                        startTime = process.StartTime;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Debug($"获取进程启动时间失败: {processId}, 错误: {ex.Message}");
-                    }
-
-                    processes.Add(new ProcessInfo
-                    {
-                        ProcessId = processId,
-                        ProcessName = processName,
-                        CommandLine = commandLine,
-                        StartTime = startTime
-                    });
-                }
-                catch (Exception ex)
-                {
-                    _logger.Debug($"处理进程失败: {ex.Message}");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.Warning($"WMI 查询失败: {ex.Message}");
-            // WMI 查询失败，尝试使用 Process.GetProcesses 作为备选方案
-            try
-            {
-                foreach (var process in Process.GetProcessesByName(processName))
-                {
-                    processes.Add(new ProcessInfo
-                    {
-                        ProcessId = process.Id,
-                        ProcessName = process.ProcessName,
-                        CommandLine = "", // 无法获取命令行
-                        StartTime = SafeGetStartTime(process)
-                    });
-                }
-            }
-            catch (Exception innerEx)
-            {
-                _logger.Debug($"备份进程枚举失败: {innerEx.Message}");
-            }
-        }
-
-        return processes;
-    }
-
-    public bool TerminateProcess(int processId)
-    {
-        try
-        {
-            var process = Process.GetProcessById(processId);
-            process.Kill();
-            process.WaitForExit(5000);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.Warning($"终止进程失败: {processId}, 错误: {ex.Message}");
-            return false;
-        }
-    }
+    #region 系统信息
 
     public SystemDependency? GetFuseDependency()
     {

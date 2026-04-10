@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using RcloneHelper.Models;
 
 namespace RcloneHelper.Services.Abstractions;
@@ -45,23 +46,11 @@ public interface ISystemService
     /// <returns>已使用的挂载点列表</returns>
     IReadOnlySet<string> GetUsedMountPoints();
 
-    #endregion
-
-    #region 进程管理
-
     /// <summary>
-    /// 查找指定名称的进程
+    /// 获取系统当前的 rclone 挂载名称和挂载点映射（不含进程ID）
     /// </summary>
-    /// <param name="processName">进程名称（不含扩展名）</param>
-    /// <returns>进程信息列表</returns>
-    IEnumerable<ProcessInfo> FindProcesses(string processName);
-
-    /// <summary>
-    /// 终止指定进程
-    /// </summary>
-    /// <param name="processId">进程ID</param>
-    /// <returns>操作是否成功</returns>
-    bool TerminateProcess(int processId);
+    /// <returns>挂载名称到挂载点的映射（如: "alist" -> "Z:"）</returns>
+    IReadOnlyDictionary<string, string> GetActiveMountNames();
 
     #endregion
 
@@ -70,7 +59,7 @@ public interface ISystemService
     /// <summary>
     /// 获取当前平台类型
     /// </summary>
-    PlatformType Platform { get; }
+    OSPlatform Platform { get; }
 
     /// <summary>
     /// 获取应用程序可执行文件路径
@@ -88,41 +77,4 @@ public interface ISystemService
     SystemDependency? GetRcloneDependency();
 
     #endregion
-}
-
-/// <summary>
-/// 进程信息
-/// </summary>
-public class ProcessInfo
-{
-    /// <summary>
-    /// 进程ID
-    /// </summary>
-    public int ProcessId { get; init; }
-
-    /// <summary>
-    /// 进程名称
-    /// </summary>
-    public string ProcessName { get; init; } = "";
-
-    /// <summary>
-    /// 命令行参数
-    /// </summary>
-    public string CommandLine { get; init; } = "";
-
-    /// <summary>
-    /// 启动时间
-    /// </summary>
-    public DateTime StartTime { get; init; }
-}
-
-/// <summary>
-/// 平台类型
-/// </summary>
-public enum PlatformType
-{
-    Windows,
-    Linux,
-    macOS,
-    Unknown
 }

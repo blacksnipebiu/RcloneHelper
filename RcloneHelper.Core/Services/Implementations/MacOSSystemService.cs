@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using RcloneHelper.Helpers;
 using RcloneHelper.Models;
@@ -28,7 +29,7 @@ public class MacOSSystemService : ISystemService
 
     #region ISystemService 实现
 
-    public PlatformType Platform => PlatformType.macOS;
+    public OSPlatform Platform => OSPlatform.OSX;
 
     public string AppExecutablePath => System.Reflection.Assembly.GetExecutingAssembly().Location;
 
@@ -146,83 +147,68 @@ public class MacOSSystemService : ISystemService
         return usedMounts;
     }
 
-    #endregion
-
-    #region 进程管理
-
-    public IEnumerable<ProcessInfo> FindProcesses(string processName)
+    public IReadOnlyDictionary<string, string> GetActiveMountNames()
     {
-        var processes = new List<ProcessInfo>();
+        var mounts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         try
         {
-            // 使用 ps 命令获取进程信息
-            var output = ExecuteCommand($"ps -eo pid,command | grep -i '{processName}' | grep -v grep");
+            // 使用 mount 命令获取挂载信息
+            // macOS格式: rclone:挂载名 on /Volumes/RcloneName (osxfuse, ...)
+            // 或: rclone:挂载名 on /Users/xxx/mnt/rclone (macfuse, ...)
+            var output = ExecuteCommand("mount 2>/dev/null | grep '^rclone:'");
+            if (string.IsNullOrWhiteSpace(output))
+            {
+                // 如果grep没有结果，尝试解析完整mount输出
+                output = ExecuteCommand("mount 2>/dev/null");
+            }
+            
             var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            _logger.Debug($"[GetActiveMounts] mount 输出 {lines.Length} 行");
 
             foreach (var line in lines)
             {
-                var trimmed = line.Trim();
-                if (string.IsNullOrEmpty(trimmed))
-                    continue;
-
-                // 解析 "PID COMMAND" 格式
-                var spaceIndex = trimmed.IndexOf(' ');
-                if (spaceIndex > 0 && int.TryParse(trimmed.Substring(0, spaceIndex), out var pid))
+                // 查找rclone挂载: "rclone:挂载名 on /挂载点 ..."
+                if (!line.StartsWith("rclone:")) continue;
+                
+                var onIndex = line.IndexOf(" on ");
+                if (onIndex > 0)
                 {
-                    var commandLine = trimmed.Substring(spaceIndex + 1).Trim();
-
-                    processes.Add(new ProcessInfo
+                    var remote = line.Substring(0, onIndex);
+                    var rest = line.Substring(onIndex + 4);
+                    
+                    if (remote.StartsWith("rclone:"))
                     {
-                        ProcessId = pid,
-                        ProcessName = processName,
-                        CommandLine = commandLine,
-                        StartTime = DateTime.MinValue
-                    });
+                        var name = remote.Substring("rclone:".Length);
+                        // 提取挂载点 (在 "(" 或 " type" 之前)
+                        var parenIndex = rest.IndexOf(" (");
+                        var typeIndex = rest.IndexOf(" type");
+                        var endIndex = Math.Min(
+                            parenIndex >= 0 ? parenIndex : int.MaxValue,
+                            typeIndex >= 0 ? typeIndex : int.MaxValue
+                        );
+                        
+                        var mountPoint = endIndex < int.MaxValue ? rest.Substring(0, endIndex) : rest.Trim();
+                        mountPoint = mountPoint.Trim();
+                        mounts[name] = mountPoint;
+                        _logger.Debug($"[GetActiveMounts] 发现 rclone 挂载: {name} -> {mountPoint}");
+                    }
                 }
             }
+
+            _logger.Debug($"[GetActiveMounts] 共发现 {mounts.Count} 个 rclone 挂载");
         }
         catch (Exception ex)
         {
-            _logger.Debug($"ps 命令失败，使用备选方案: {ex.Message}");
-            // 使用 Process.GetProcessesByName 作为备选
-            try
-            {
-                foreach (var process in Process.GetProcessesByName(processName))
-                {
-                    processes.Add(new ProcessInfo
-                    {
-                        ProcessId = process.Id,
-                        ProcessName = process.ProcessName,
-                        CommandLine = "",
-                        StartTime = SafeGetStartTime(process)
-                    });
-                }
-            }
-            catch (Exception innerEx)
-            {
-                _logger.Warning($"进程枚举失败: {innerEx.Message}");
-            }
+            _logger.Warning($"获取活动挂载失败: {ex.Message}");
         }
 
-        return processes;
+        return mounts;
     }
 
-    public bool TerminateProcess(int processId)
-    {
-        try
-        {
-            var process = Process.GetProcessById(processId);
-            process.Kill();
-            process.WaitForExit(5000);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.Warning($"终止进程失败: {processId}, 错误: {ex.Message}");
-            return false;
-        }
-    }
+    #endregion
+
+    #region 系统信息
 
     public SystemDependency? GetFuseDependency()
     {
