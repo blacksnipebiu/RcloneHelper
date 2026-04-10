@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -130,7 +131,7 @@ public class MountService
         try
         {
             var json = File.ReadAllText(configPath);
-            var configs = JsonSerializer.Deserialize<List<MountConfig>>(json);
+            var configs = JsonSerializer.Deserialize(json, AppJsonSerializerContext.Default.ListMountConfig);
             if (configs == null)
                 return;
 
@@ -154,7 +155,7 @@ public class MountService
         try
         {
             var configs = Mounts.Select(m => m.ToConfig()).ToList();
-            var json = JsonSerializer.Serialize(configs, new JsonSerializerOptions { WriteIndented = true });
+            var json = JsonSerializer.Serialize(configs, AppJsonSerializerContext.Default.ListMountConfig);
             PathUtil.AtomicWriteAllText(PathUtil.MountsConfigPath, json);
         }
         catch (Exception ex)

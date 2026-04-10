@@ -86,12 +86,4 @@ public static class SecureStorageHelper
             return string.Empty;
         }
     }
-
-    /// <summary>
-    /// 检查数据是否已加密
-    /// </summary>
-    public static bool IsEncrypted(string? text)
-    {
-        return !string.IsNullOrEmpty(text) && text.StartsWith(EncryptedPrefix);
-    }
 }

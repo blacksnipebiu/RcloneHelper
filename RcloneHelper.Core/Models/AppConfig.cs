@@ -3,23 +3,23 @@ using System.Linq;
 namespace RcloneHelper.Models;
 
 /// <summary>
-    /// 应用程序配置
+/// 应用程序配置
+/// </summary>
+public class AppConfig
+{
+    private const int MinPort = 1;
+    private const int MaxPort = 65535;
+    private static readonly string[] ValidProtocols = { "http", "https", "socks5" };
+
+    /// <summary>
+    /// 启动时自动挂载所有存储
     /// </summary>
-    public class AppConfig
-    {
-        private const int MinPort = 1;
-        private const int MaxPort = 65535;
-        private static readonly string[] ValidProtocols = { "http", "https", "socks5" };
+    public bool AutoMountOnStart { get; set; } = false;
 
-        /// <summary>
-        /// 启动时自动挂载所有存储
-        /// </summary>
-        public bool AutoMountOnStart { get; set; } = false;
-
-        /// <summary>
-        /// 是否使用深色模式
-        /// </summary>
-        public bool IsDarkMode { get; set; } = true;
+    /// <summary>
+    /// 是否使用深色模式
+    /// </summary>
+    public bool IsDarkMode { get; set; } = true;
 
     /// <summary>
     /// 开机启动时是否静默启动（最小化到托盘）
@@ -35,6 +35,7 @@ namespace RcloneHelper.Models;
     /// 代理协议 (http, https, socks5)
     /// </summary>
     private string _proxyProtocol = "http";
+
     public string ProxyProtocol
     {
         get => _proxyProtocol;
@@ -54,6 +55,7 @@ namespace RcloneHelper.Models;
     /// 代理服务器端口 (如 7890)
     /// </summary>
     private int _proxyPort = 7890;
+
     public int ProxyPort
     {
         get => _proxyPort;

@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using RcloneHelper.Helpers;
 using RcloneHelper.Models;
 using RcloneHelper.Services.Abstractions;
@@ -60,7 +61,7 @@ public class ConfigService : IConfigService
             if (File.Exists(settingsPath))
             {
                 var json = File.ReadAllText(settingsPath);
-                return JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
+                return JsonSerializer.Deserialize(json, AppJsonSerializerContext.Default.AppConfig) ?? new AppConfig();
             }
         }
         catch (Exception ex)
@@ -76,7 +77,7 @@ public class ConfigService : IConfigService
         try
         {
             var settingsPath = PathUtil.SettingsPath;
-            var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+            var json = JsonSerializer.Serialize(config, AppJsonSerializerContext.Default.AppConfig);
             PathUtil.AtomicWriteAllText(settingsPath, json);
         }
         catch (Exception ex)
