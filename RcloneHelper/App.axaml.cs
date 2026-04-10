@@ -32,6 +32,7 @@ public partial class App : Application
 
         // 记录启动日志
         _logger = _serviceProvider.GetRequiredService<ILoggerService>();
+        JsonHelper.Initialize(_logger);
         _logger.Info($"RcloneHelper 启动, 参数: {string.Join(" ", Environment.GetCommandLineArgs())}");
 
         // 订阅单实例服务的事件，接收来自其他实例的参数
