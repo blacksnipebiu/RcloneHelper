@@ -7,7 +7,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using RcloneHelper.Helpers;
 using RcloneHelper.Models;
@@ -21,6 +20,7 @@ public partial class RcloneConfigPageViewModel : ObservableObject
     private readonly ISystemService _systemService;
     private readonly INotificationService _notificationService;
     private readonly IConfigService _configService;
+    private readonly MountService _mountService;
 
     [ObservableProperty]
     private string _rcloneVersion = "正在获取...";
@@ -49,11 +49,13 @@ public partial class RcloneConfigPageViewModel : ObservableObject
     public RcloneConfigPageViewModel(
         ISystemService systemService,
         INotificationService notificationService,
-        IConfigService configService)
+        IConfigService configService,
+        MountService mountService)
     {
         _systemService = systemService;
         _notificationService = notificationService;
         _configService = configService;
+        _mountService = mountService;
 
         CheckDependencies();
         LoadRcloneInfo();
@@ -147,7 +149,7 @@ public partial class RcloneConfigPageViewModel : ObservableObject
 
     private void LoadRemotesWithMountStatus()
     {
-        var activeMounts = GetActiveMounts();
+        var activeMounts = _systemService.GetActiveMountNames();
 
         Remotes.Clear();
         try
@@ -202,55 +204,22 @@ public partial class RcloneConfigPageViewModel : ObservableObject
 
         foreach (var remote in Remotes)
         {
-            var mountInfo = activeMounts.FirstOrDefault(m =>
-                m.Name.StartsWith(remote.Name) || m.Name == remote.Name);
-            if (mountInfo != null)
+            // 查找匹配的挂载点 (名称完全匹配或名称以 remote.Name 开头)
+            var mountPoint = activeMounts.FirstOrDefault(m =>
+                m.Key.Equals(remote.Name, StringComparison.OrdinalIgnoreCase) ||
+                m.Key.StartsWith(remote.Name + ":", StringComparison.OrdinalIgnoreCase)).Value;
+            
+            if (!string.IsNullOrEmpty(mountPoint))
             {
                 remote.IsMounted = true;
-                remote.LocalDrive = mountInfo.LocalDrive;
-                remote.ProcessId = mountInfo.ProcessId;
+                remote.LocalDrive = mountPoint;
             }
             else
             {
                 remote.IsMounted = false;
                 remote.LocalDrive = "";
-                remote.ProcessId = 0;
             }
         }
-    }
-
-    private List<ActiveMountInfo> GetActiveMounts()
-    {
-        var mounts = new List<ActiveMountInfo>();
-        try
-        {
-            // 使用 ISystemService 查找 rclone 进程
-            var processes = _systemService.FindProcesses("rclone");
-
-            foreach (var process in processes)
-            {
-                // 解析命令行获取挂载信息
-                var mountMatch = Regex.Match(
-                    process.CommandLine,
-                    @"mount\s+(\S+)\s+(\S+)",
-                    RegexOptions.IgnoreCase);
-
-                if (mountMatch.Success)
-                {
-                    mounts.Add(new ActiveMountInfo
-                    {
-                        Name = mountMatch.Groups[1].Value,
-                        LocalDrive = mountMatch.Groups[2].Value,
-                        ProcessId = process.ProcessId
-                    });
-                }
-            }
-        }
-        catch
-        {
-            // 忽略错误
-        }
-        return mounts;
     }
 
     private string GetFileVersion(string filePath)
@@ -359,13 +328,12 @@ public partial class RcloneConfigPageViewModel : ObservableObject
     [RelayCommand]
     private void UnmountSelected()
     {
-        if (SelectedRemote == null || !SelectedRemote.IsMounted || SelectedRemote.ProcessId == 0)
+        if (SelectedRemote == null || !SelectedRemote.IsMounted)
             return;
 
         try
         {
-            _systemService.TerminateProcess(SelectedRemote.ProcessId);
-
+            _mountService.Unmount(SelectedRemote.Name);
             SelectedRemote = null;
             LoadRemotesWithMountStatus();
         }
@@ -430,7 +398,4 @@ public partial class RemoteConfig : ObservableObject
 
     [ObservableProperty]
     private string _localDrive = "";
-
-    [ObservableProperty]
-    private int _processId;
 }
