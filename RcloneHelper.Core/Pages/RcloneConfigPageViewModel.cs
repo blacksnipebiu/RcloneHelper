@@ -61,71 +61,11 @@ public partial class RcloneConfigPageViewModel : ObservableObject
         LoadRcloneInfo();
     }
 
-    private string? GetRclonePath()
-    {
-        // 1. 优先查找 %APPDATA%\RcloneHelper 目录
-        var appDataRclone = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-            ? Path.Combine(PathUtil.AppDataDir, "rclone.exe")
-            : Path.Combine(PathUtil.AppDataDir, "rclone");
-
-        if (File.Exists(appDataRclone))
-            return appDataRclone;
-
-        // 2. 查找程序目录
-        var appDir = AppDomain.CurrentDomain.BaseDirectory;
-        var localRclone = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-            ? Path.Combine(appDir, "rclone.exe")
-            : Path.Combine(appDir, "rclone");
-
-        if (File.Exists(localRclone))
-            return localRclone;
-
-        // 3. 从 PATH 环境变量查找实际路径
-        return FindRcloneInPath();
-    }
-
-    private static string? FindRcloneInPath()
-    {
-        try
-        {
-            using var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "where" : "which",
-                    Arguments = "rclone",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-
-            process.Start();
-            var output = process.StandardOutput.ReadToEnd();
-            process.WaitForExit(5000);
-
-            if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
-            {
-                // where/which 可能返回多行，取第一行
-                var path = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)[0];
-                if (File.Exists(path))
-                    return path;
-            }
-        }
-        catch
-        {
-            // 忽略错误
-        }
-
-        return null;
-    }
-
     private void LoadRcloneInfo()
     {
         try
         {
-            var rclonePath = GetRclonePath();
+            var rclonePath = RcloneLocator.GetRclonePath();
             if (rclonePath != null && File.Exists(rclonePath))
             {
                 var versionInfo = GetFileVersion(rclonePath);
@@ -305,7 +245,7 @@ public partial class RcloneConfigPageViewModel : ObservableObject
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = GetRclonePath(),
+                    FileName = RcloneLocator.GetRclonePath(),
                     Arguments = $"config delete \"{remoteName}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -331,14 +271,65 @@ public partial class RcloneConfigPageViewModel : ObservableObject
         if (SelectedRemote == null || !SelectedRemote.IsMounted)
             return;
 
+        if (string.IsNullOrWhiteSpace(SelectedRemote.LocalDrive))
+        {
+            _notificationService.ShowError("卸载失败: 挂载点信息无效，请刷新后重试");
+            return;
+        }
+
         try
         {
-            _mountService.Unmount(SelectedRemote.Name);
-            SelectedRemote = null;
+            var rclonePath = RcloneLocator.GetRclonePath();
+            if (string.IsNullOrEmpty(rclonePath))
+            {
+                _notificationService.ShowError("卸载失败: 未找到 rclone");
+                return;
+            }
+
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = rclonePath,
+                    Arguments = $"umount {SelectedRemote.LocalDrive}",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            var exited = process.WaitForExit(5000);
+
+            if (!exited)
+            {
+                // WaitForExit 超时，进程仍在运行
+                try
+                {
+                    process.Kill();
+                }
+                catch
+                {
+                    // 忽略杀死进程时的异常
+                }
+                _notificationService.ShowError("卸载超时（5秒），请稍后重试或手动卸载");
+                return;
+            }
+
+            if (process.ExitCode != 0)
+            {
+                var error = process.StandardError.ReadToEnd();
+                _notificationService.ShowError($"卸载失败: rclone umount 返回 {process.ExitCode}");
+                return;
+            }
+
+            _notificationService.ShowSuccess($"已卸载 {SelectedRemote.Name}");
             LoadRemotesWithMountStatus();
         }
-        catch
+        catch (Exception ex)
         {
+            _notificationService.ShowError($"卸载异常: {ex.Message}");
         }
     }
 

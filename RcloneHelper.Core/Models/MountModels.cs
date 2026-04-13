@@ -5,6 +5,17 @@ using System.Threading;
 
 namespace RcloneHelper.Models;
 
+/// <summary>
+/// 挂载进程信息（用于重启后恢复进程追踪）
+/// </summary>
+public class RcloneMountInfo
+{
+    public int Pid { get; set; }
+    public string MountName { get; set; } = "";
+    public string DriveLetter { get; set; } = "";
+    public string CommandLine { get; set; } = "";
+}
+
 public class MountConfig
 {
     private const int MinPort = 1;

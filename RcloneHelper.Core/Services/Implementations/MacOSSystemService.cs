@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using RcloneHelper.Helpers;
@@ -182,6 +181,171 @@ public class MacOSSystemService : ISystemService
         return mounts;
     }
 
+    public Dictionary<int, string> GetRcloneProcessList()
+    {
+        var result = new Dictionary<int, string>();
+
+        try
+        {
+            var output = ExecuteCommand("ps -eo pid,args");
+            if (string.IsNullOrEmpty(output))
+                return result;
+
+            // 解析 ps 输出: "  1234 /usr/bin/rclone mount name: /path ..."
+            foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var trimmed = line.TrimStart();
+                var spaceIdx = trimmed.IndexOf(' ');
+                if (spaceIdx <= 0)
+                    continue;
+
+                if (!int.TryParse(trimmed[..spaceIdx], out var pid))
+                    continue;
+
+                var cmdLine = trimmed[(spaceIdx + 1)..].TrimStart();
+                if (!string.IsNullOrEmpty(cmdLine))
+                    result[pid] = cmdLine;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"获取 rclone 进程列表失败: {ex.Message}");
+        }
+
+        return result;
+    }
+
+    public IReadOnlyDictionary<string, RcloneMountInfo> ScanRcloneMounts()
+    {
+        var result = new Dictionary<string, RcloneMountInfo>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            var processList = GetRcloneProcessList();
+
+            foreach (var (pid, commandLine) in processList)
+            {
+                var mountInfo = ParseRcloneMountCommandLine(pid, commandLine);
+                if (mountInfo != null && !string.IsNullOrEmpty(mountInfo.MountName))
+                {
+                    result[mountInfo.MountName] = mountInfo;
+                }
+            }
+
+            _logger.Debug($"[ScanRcloneMounts] 扫描到 {result.Count} 个 rclone 挂载进程");
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"扫描 rclone 挂载进程失败: {ex.Message}");
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 解析 rclone mount 命令行，提取挂载信息
+    /// 命令行格式: /usr/bin/rclone mount &lt;remote&gt; &lt;mountpoint&gt; [options]
+    /// 示例: /usr/bin/rclone mount remote: /Volumes/Rclone1 --vfs-cache-mode writes
+    /// </summary>
+    private RcloneMountInfo? ParseRcloneMountCommandLine(int pid, string commandLine)
+    {
+        if (string.IsNullOrWhiteSpace(commandLine))
+            return null;
+
+        try
+        {
+            // 查找 " mount " 关键字
+            var mountIndex = commandLine.IndexOf(" mount ", StringComparison.OrdinalIgnoreCase);
+            if (mountIndex < 0)
+                return null;
+
+            // 获取 mount 后的参数部分
+            var argsPart = commandLine.Substring(mountIndex + " mount ".Length).TrimStart();
+
+            // 解析第一个参数（remote，可能是带引号的名称或普通名称）
+            string mountName;
+            string remaining;
+
+            if (argsPart.StartsWith('"'))
+            {
+                // 带引号的名称
+                var endQuote = argsPart.IndexOf('"', 1);
+                if (endQuote < 0)
+                    return null;
+                mountName = argsPart.Substring(1, endQuote - 1);
+                remaining = argsPart.Substring(endQuote + 1).TrimStart();
+            }
+            else if (argsPart.StartsWith('\''))
+            {
+                // 单引号包裹的名称
+                var endQuote = argsPart.IndexOf('\'', 1);
+                if (endQuote < 0)
+                    return null;
+                mountName = argsPart.Substring(1, endQuote - 1);
+                remaining = argsPart.Substring(endQuote + 1).TrimStart();
+            }
+            else
+            {
+                // 普通名称，查找空格或冒号结束
+                var spaceIdx = argsPart.IndexOf(' ');
+                var colonIdx = argsPart.IndexOf(':');
+
+                int endIdx;
+                if (spaceIdx < 0 && colonIdx < 0)
+                    return null;
+                else if (spaceIdx < 0)
+                    endIdx = colonIdx;
+                else if (colonIdx < 0)
+                    endIdx = spaceIdx;
+                else
+                    endIdx = Math.Min(spaceIdx, colonIdx);
+
+                mountName = argsPart.Substring(0, endIdx);
+                remaining = argsPart.Substring(endIdx + 1).TrimStart();
+            }
+
+            // 解析第二个参数（mountpoint，可能是带引号的路径或普通路径）
+            string mountPoint;
+            if (remaining.StartsWith('"'))
+            {
+                // 带引号的路径
+                var endQuote = remaining.IndexOf('"', 1);
+                if (endQuote < 0)
+                    return null;
+                mountPoint = remaining.Substring(1, endQuote - 1);
+            }
+            else if (remaining.StartsWith('\''))
+            {
+                // 单引号包裹的路径
+                var endQuote = remaining.IndexOf('\'', 1);
+                if (endQuote < 0)
+                    return null;
+                mountPoint = remaining.Substring(1, endQuote - 1);
+            }
+            else
+            {
+                // 普通路径，找到下一个空格之前的内容
+                var spaceIdx = remaining.IndexOf(' ');
+                mountPoint = spaceIdx > 0 ? remaining.Substring(0, spaceIdx) : remaining;
+            }
+
+            if (string.IsNullOrEmpty(mountPoint))
+                return null;
+
+            return new RcloneMountInfo
+            {
+                Pid = pid,
+                MountName = mountName,
+                DriveLetter = mountPoint,  // macOS 上是路径而非盘符
+                CommandLine = commandLine
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.Debug($"解析 rclone 命令行失败 (PID: {pid}): {ex.Message}");
+            return null;
+        }
+    }
     #endregion
 
     #region 系统信息
@@ -227,44 +391,13 @@ public class MacOSSystemService : ISystemService
 
         try
         {
-            string? rclonePath = null;
-
-            // 1. 优先查找 ~/.config/rclonehelper 目录
-            var appDataRclone = Path.Combine(PathUtil.AppDataDir, "rclone");
-            if (File.Exists(appDataRclone))
-            {
-                rclonePath = appDataRclone;
-            }
-
-            // 2. 查找程序目录
-            if (rclonePath == null)
-            {
-                var appDir = AppDomain.CurrentDomain.BaseDirectory;
-                var localRclone = Path.Combine(appDir, "rclone");
-                if (File.Exists(localRclone))
-                {
-                    rclonePath = localRclone;
-                }
-            }
-
-            // 3. 从 PATH 环境变量查找
-            if (rclonePath == null)
-            {
-                rclonePath = FindRcloneInPath();
-            }
-
-            // 4. 验证 rclone 是否可用
-            var isInstalled = false;
-            if (rclonePath != null)
-            {
-                isInstalled = TestRcloneExecution(rclonePath);
-            }
-
-            dependency.Status = isInstalled ? DependencyStatus.Installed : DependencyStatus.NotInstalled;
+            var rclonePath = RcloneLocator.GetRclonePath();
+            dependency.Status = RcloneLocator.TestExecution(rclonePath)
+                ? DependencyStatus.Installed
+                : DependencyStatus.NotInstalled;
         }
-        catch (Exception ex)
+        catch
         {
-            _logger.Debug($"检测 rclone 失败: {ex.Message}");
             dependency.Status = DependencyStatus.NotInstalled;
         }
 

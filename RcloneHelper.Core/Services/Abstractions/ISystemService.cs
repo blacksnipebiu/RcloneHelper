@@ -45,6 +45,18 @@ public interface ISystemService
     /// <returns>挂载名称到挂载点的映射（如: "alist" -> "Z:"）</returns>
     IReadOnlyDictionary<string, string> GetActiveMountNames();
 
+    /// <summary>
+    /// 获取系统中所有 rclone 进程及其 PID 和完整命令行
+    /// </summary>
+    /// <returns>PID 到命令行的映射</returns>
+    Dictionary<int, string> GetRcloneProcessList();
+
+    /// <summary>
+    /// 扫描系统中所有 rclone mount 进程，返回挂载名称到进程信息的映射
+    /// </summary>
+    /// <returns>挂载名称 -> 进程信息</returns>
+    IReadOnlyDictionary<string, RcloneMountInfo> ScanRcloneMounts();
+
     #endregion
 
     #region 系统信息

@@ -96,8 +96,27 @@ public partial class MainWindowViewModel : ObservableObject
         // 刷新挂载状态
         HomePageViewModel.RefreshMountStatus();
 
-        // 自动挂载所有配置了"启动时自动挂载"的存储
-        await HomePageViewModel.AutoMountConfiguredAsync();
+        // 恢复进程追踪 + 自动挂载（后台执行，先恢复再挂载，避免竞争）
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await HomePageViewModel.RestoreMountProcessesAsync();
+            }
+            catch (Exception ex)
+            {
+                _notificationService.ShowError($"恢复挂载进程失败: {ex.Message}");
+            }
+
+            try
+            {
+                await HomePageViewModel.AutoMountConfiguredAsync();
+            }
+            catch (Exception ex)
+            {
+                _notificationService.ShowError($"自动挂载失败: {ex.Message}");
+            }
+        });
     }
 
     [RelayCommand]

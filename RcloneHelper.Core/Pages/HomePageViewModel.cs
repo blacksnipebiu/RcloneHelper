@@ -1,6 +1,5 @@
 using System;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -68,7 +67,7 @@ public partial class HomePageViewModel : ObservableObject
     public async Task AutoMountConfiguredAsync()
     {
         var toMount = AllMounts.Where(m => m.AutoMountOnStart && !m.IsMounted).ToList();
-        
+
         // 并行执行所有挂载任务
         var tasks = toMount.Select(mount => MountAsync(mount));
         await Task.WhenAll(tasks);
@@ -81,6 +80,15 @@ public partial class HomePageViewModel : ObservableObject
     {
         _mountService.RefreshMountStatus();
         UpdateMountCollections();
+    }
+
+    /// <summary>
+    /// 从状态文件恢复进程追踪
+    /// （窗口启动时调用，根据保存的 PID 恢复进程）
+    /// </summary>
+    public async Task RestoreMountProcessesAsync()
+    {
+        await _mountService.RestoreMountProcessesAsync();
     }
 
     private void LoadMountsFromService()
@@ -415,7 +423,7 @@ public partial class HomePageViewModel : ObservableObject
     private async Task MountAllAsync()
     {
         var toMount = UnmountedMounts.ToList();
-        
+
         // 并行执行所有挂载任务
         var tasks = toMount.Select(mount => MountAsync(mount));
         await Task.WhenAll(tasks);
@@ -484,7 +492,7 @@ public partial class HomePageViewModel : ObservableObject
     {
         // 创建取消令牌
         mount.MountCancellationTokenSource = new CancellationTokenSource();
-        
+
         try
         {
             await _mountService.MountAsync(mount.Name, null, mount.MountCancellationTokenSource.Token);

@@ -69,7 +69,6 @@ public class WindowsSystemService : ISystemService
         try
         {
             var exePath = AppExecutablePath;
-            _logger.Info($"[AutoStart] 设置开机启动: {enabled}, 程序路径: {exePath}");
 
             if (enabled)
             {
@@ -96,7 +95,6 @@ public class WindowsSystemService : ISystemService
 
             // 添加 --autostart 参数，用于区分开机自启启动和用户手动启动
             var arguments = $"/Create /TN \"{TaskName}\" /TR \"\\\"{exePath}\\\" --autostart\" /SC ONLOGON /F";
-            _logger.Debug($"[AutoStart] 执行命令: schtasks {arguments}");
 
             var process = new Process
             {
@@ -119,7 +117,7 @@ public class WindowsSystemService : ISystemService
             }
             else
             {
-                _logger.Error($"[AutoStart] 开机启动任务创建失败, 退出码: {process.ExitCode}");
+                _logger.Warning("[AutoStart] 开机启动任务创建失败");
                 return false;
             }
         }
@@ -177,13 +175,13 @@ public class WindowsSystemService : ISystemService
             process.Start();
             process.WaitForExit(5000);
         }
-        catch (Exception ex)
+        catch
         {
-            _logger.Debug($"静默删除开机启动任务失败: {ex.Message}");
+            // 静默失败，不影响主流程
         }
     }
 
-    #endregion
+    #endregion 开机自启（使用 Windows 任务计划程序）
 
     #region 挂载点管理
 
@@ -214,9 +212,9 @@ public class WindowsSystemService : ISystemService
                 usedDrives.Add(drive.Name.TrimEnd('\\'));
             }
         }
-        catch (Exception ex)
+        catch
         {
-            _logger.Debug($"获取驱动器列表失败: {ex.Message}");
+            // 获取驱动器列表失败不影响主流程
         }
 
         return usedDrives;
@@ -258,7 +256,6 @@ public class WindowsSystemService : ISystemService
             //            Z:        \\rclone\alist            WinFsp.Np
             // OK           Y:        \\rclone\飞牛             WinFsp.Np (已连接状态)
             var lines = output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
-            _logger.Debug($"[GetActiveMounts] net use 输出 {lines.Length} 行");
 
             foreach (var line in lines)
             {
@@ -269,11 +266,11 @@ public class WindowsSystemService : ISystemService
                 // 解析: "           Z:        \\rclone\alist            WinFsp.Np"
                 // 或: "OK           Z:        \\rclone\alist            WinFsp.Np"
                 var trimmedLine = line.TrimStart();
-                
+
                 // 查找盘符 (格式: X:)
                 var colonIndex = trimmedLine.IndexOf(':');
                 if (colonIndex <= 0) continue;
-                
+
                 // 盘符可能是 "X:" 或在状态之后 "OK       X:"
                 // 找到盘符位置
                 int driveStart;
@@ -286,17 +283,17 @@ public class WindowsSystemService : ISystemService
                     }
                 }
                 if (driveStart < 0) driveStart = 0;
-                
+
                 var localDrive = trimmedLine.Substring(driveStart, colonIndex - driveStart + 1);
-                
+
                 // 盘符后的内容
                 var afterDrive = trimmedLine.Substring(colonIndex + 1).TrimStart();
                 if (string.IsNullOrEmpty(afterDrive)) continue;
-                
+
                 // 下一个字段是远程路径
                 var parts = afterDrive.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 0) continue;
-                
+
                 var remote = parts[0];
 
                 // 检查是否是 rclone 挂载: \\rclone\<名称>
@@ -304,11 +301,8 @@ public class WindowsSystemService : ISystemService
                 {
                     var name = remote.Substring(@"\\rclone\".Length);
                     mounts[name] = localDrive;
-                    _logger.Debug($"[GetActiveMounts] 发现 rclone 挂载: {name} -> {localDrive}");
                 }
             }
-
-            _logger.Debug($"[GetActiveMounts] 共发现 {mounts.Count} 个 rclone 挂载");
         }
         catch (Exception ex)
         {
@@ -318,7 +312,176 @@ public class WindowsSystemService : ISystemService
         return mounts;
     }
 
-    #endregion
+    public Dictionary<int, string> GetRcloneProcessList()
+    {
+        var result = new Dictionary<int, string>();
+
+        try
+        {
+            // .NET Core 3.0+ 可通过 Process.GetProcessesByName 获取命令行参数
+            foreach (var proc in Process.GetProcessesByName("rclone"))
+            {
+                try
+                {
+                    if (proc.Id == 0)
+                    {
+                        proc.Dispose();
+                        continue;
+                    }
+
+                    // Arguments 为空（权限不足等），尝试通过 PowerShell 获取
+                    var psResult = GetProcessCommandLineByPowerShell(proc.Id);
+                    if (!string.IsNullOrEmpty(psResult))
+                    {
+                        result[proc.Id] = psResult;
+                    }
+                    proc.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warning($"获取进程 {proc.Id} 命令行失败: {ex.Message}");
+                    proc.Dispose();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"获取 rclone 进程列表失败: {ex.Message}");
+        }
+
+        return result;
+    }
+
+    public IReadOnlyDictionary<string, RcloneMountInfo> ScanRcloneMounts()
+    {
+        var result = new Dictionary<string, RcloneMountInfo>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            var processList = GetRcloneProcessList();
+
+            foreach (var (pid, commandLine) in processList)
+            {
+                var mountInfo = ParseRcloneMountCommandLine(pid, commandLine);
+                if (mountInfo != null && !string.IsNullOrEmpty(mountInfo.MountName))
+                {
+                    result[mountInfo.MountName] = mountInfo;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"扫描 rclone 挂载进程失败: {ex.Message}");
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 解析 rclone mount 命令行，提取挂载信息
+    /// 命令行格式: "path/to/rclone.exe" mount &lt;remote&gt; &lt;drive&gt;: [options]
+    /// 示例: "D:\program\rclone-v1.73.3-windows-amd64\rclone.exe" mount 飞牛: Y: --vfs-cache-mode writes --links --network-mode --volname \\rclone\飞牛
+    /// </summary>
+    private RcloneMountInfo? ParseRcloneMountCommandLine(int pid, string commandLine)
+    {
+        if (string.IsNullOrWhiteSpace(commandLine))
+            return null;
+
+        try
+        {
+            // 查找 " mount " 关键字
+            var mountIndex = commandLine.IndexOf(" mount ", StringComparison.OrdinalIgnoreCase);
+            if (mountIndex < 0)
+                return null;
+
+            // 获取 mount 后的参数部分
+            var argsPart = commandLine.Substring(mountIndex + " mount ".Length).TrimStart();
+
+            // 解析第一个参数（remote，可能是带引号的名称或普通名称）
+            string mountName;
+            string remaining;
+
+            if (argsPart.StartsWith('"'))
+            {
+                // 带引号的名称
+                var endQuote = argsPart.IndexOf('"', 1);
+                if (endQuote < 0)
+                    return null;
+                mountName = argsPart.Substring(1, endQuote - 1);
+                remaining = argsPart.Substring(endQuote + 1).TrimStart();
+            }
+            else if (argsPart.StartsWith('\''))
+            {
+                // 单引号包裹的名称
+                var endQuote = argsPart.IndexOf('\'', 1);
+                if (endQuote < 0)
+                    return null;
+                mountName = argsPart.Substring(1, endQuote - 1);
+                remaining = argsPart.Substring(endQuote + 1).TrimStart();
+            }
+            else
+            {
+                // 普通名称，查找冒号结束
+                var colonIndex = argsPart.IndexOf(':');
+                if (colonIndex < 0)
+                    return null;
+                mountName = argsPart.Substring(0, colonIndex);
+                remaining = argsPart.Substring(colonIndex + 1).TrimStart();
+            }
+
+            // 解析第二个参数（drive letter，如 "Y:" 或 "Z:"）
+            // drive 是以冒号结尾的单个字母
+            var driveMatch = System.Text.RegularExpressions.Regex.Match(remaining, @"^([A-Za-z]):\s*");
+            if (!driveMatch.Success)
+                return null;
+
+            var driveLetter = driveMatch.Groups[1].Value.ToUpper() + ":";
+
+            return new RcloneMountInfo
+            {
+                Pid = pid,
+                MountName = mountName,
+                DriveLetter = driveLetter,
+                CommandLine = commandLine
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 通过 PowerShell 获取指定 PID 进程的完整命令行
+    /// </summary>
+    private string GetProcessCommandLineByPowerShell(int pid)
+    {
+        try
+        {
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "powershell",
+                    Arguments = $"-NoProfile -Command \"(Get-CimInstance Win32_Process -Filter 'ProcessId={pid}').CommandLine\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            process.Start();
+            var output = process.StandardOutput.ReadToEnd();
+            process.WaitForExit(3000);
+            return output.Trim();
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    #endregion 挂载点管理
 
     #region 系统信息
 
@@ -384,9 +547,8 @@ public class WindowsSystemService : ISystemService
 
             dependency.Status = isInstalled ? DependencyStatus.Installed : DependencyStatus.NotInstalled;
         }
-        catch (Exception ex)
+        catch
         {
-            _logger.Debug($"检测 WinFsp 失败: {ex.Message}");
             dependency.Status = DependencyStatus.NotInstalled;
         }
 
@@ -405,116 +567,20 @@ public class WindowsSystemService : ISystemService
 
         try
         {
-            string? rclonePath = null;
-
-            // 1. 优先查找 %APPDATA%\RcloneHelper 目录
-            var appDataRclone = Path.Combine(PathUtil.AppDataDir, "rclone.exe");
-            if (File.Exists(appDataRclone))
-            {
-                rclonePath = appDataRclone;
-            }
-
-            // 2. 查找程序目录
-            if (rclonePath == null)
-            {
-                var appDir = AppDomain.CurrentDomain.BaseDirectory;
-                var localRclone = Path.Combine(appDir, "rclone.exe");
-                if (File.Exists(localRclone))
-                {
-                    rclonePath = localRclone;
-                }
-            }
-
-            // 3. 从 PATH 环境变量查找
-            if (rclonePath == null)
-            {
-                rclonePath = FindRcloneInPath();
-            }
-
-            // 4. 验证 rclone 是否可用
-            var isInstalled = false;
-            if (rclonePath != null)
-            {
-                isInstalled = TestRcloneExecution(rclonePath);
-            }
-
-            dependency.Status = isInstalled ? DependencyStatus.Installed : DependencyStatus.NotInstalled;
+            var rclonePath = RcloneLocator.GetRclonePath();
+            dependency.Status = RcloneLocator.TestExecution(rclonePath)
+                ? DependencyStatus.Installed
+                : DependencyStatus.NotInstalled;
         }
-        catch (Exception ex)
+        catch
         {
-            _logger.Debug($"检测 rclone 失败: {ex.Message}");
             dependency.Status = DependencyStatus.NotInstalled;
         }
 
         return dependency;
     }
 
-    private static string? FindRcloneInPath()
-    {
-        try
-        {
-            using var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "where",
-                    Arguments = "rclone",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
+    #endregion 系统信息
 
-            process.Start();
-            var output = process.StandardOutput.ReadToEnd();
-            process.WaitForExit(5000);
-
-            if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
-            {
-                var path = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)[0];
-                if (File.Exists(path))
-                    return path;
-            }
-        }
-        catch (Exception ex)
-        {
-            // 查找 rclone 路径失败，返回 null 让调用者使用默认路径
-            System.Diagnostics.Debug.WriteLine($"FindRcloneInPath 失败: {ex.Message}");
-        }
-
-        return null;
-    }
-
-    private static bool TestRcloneExecution(string rclonePath)
-    {
-        try
-        {
-            using var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = rclonePath,
-                    Arguments = "version",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-
-            process.Start();
-            process.WaitForExit(5000);
-            return process.ExitCode == 0;
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"TestRcloneExecution 失败: {rclonePath}, 错误: {ex.Message}");
-            return false;
-        }
-    }
-
-    #endregion
-
-    #endregion
+    #endregion ISystemService 实现
 }
