@@ -27,6 +27,7 @@ public class MountService
     private readonly INotificationService _notificationService;
     private readonly ConcurrentDictionary<string, Process> _mountProcesses = new();
     private readonly SynchronizationContext? _syncContext;
+    private readonly SemaphoreSlim _configLock = new(1, 1);
 
     /// <summary>
     /// 挂载列表变化事件（新增或删除时触发）
@@ -146,7 +147,7 @@ public class MountService
         var oldName = originalName ?? mount.Name;
         if (!string.IsNullOrEmpty(oldName) && oldName != mount.Name)
         {
-            DeleteRcloneConfig(oldName);
+            await DeleteRcloneConfigAsync(oldName);
         }
 
         // 更新 rclone 配置（create 命令会创建或更新）
@@ -162,21 +163,29 @@ public class MountService
     {
         try
         {
-            _logger.Debug($"删除 rclone 配置: {name}");
-            var process = new Process
+            _configLock.Wait();
+            try
             {
-                StartInfo = new ProcessStartInfo
+                _logger.Debug($"删除 rclone 配置: {name}");
+                var process = new Process
                 {
-                    FileName = RcloneLocator.GetRclonePath(),
-                    Arguments = $"config delete {name}",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-            process.Start();
-            process.WaitForExit(5000);
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = RcloneLocator.GetRclonePath(),
+                        Arguments = $"config delete {EscapeRcloneName(name)}",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+                process.Start();
+                process.WaitForExit(5000);
+            }
+            finally
+            {
+                _configLock.Release();
+            }
         }
         catch (Exception ex)
         {
@@ -319,6 +328,9 @@ public class MountService
             // 创建 rclone 配置（如果名称变更，删除旧的配置）
             await CreateRcloneConfigAsync(mount, oldName);
 
+            // 清理可能的残留挂载状态（僵尸进程占用的 WinFsp 网络共享名等）
+            await CleanupStaleMountAsync(mount);
+
             // 构建挂载参数
             var mountArgs = BuildMountArgs(mount);
 
@@ -398,13 +410,24 @@ public class MountService
 
                 if (IsMountPointAccessible(mount.LocalDrive))
                 {
-                    mount.IsMounting = false;
-                    mount.IsMounted = true;
-                    mount.Status = $"已挂载到 {mount.LocalDrive}";
-                    mount.MountCancellationTokenSource = null;
-                    _logger.Info($"挂载成功: {name} -> {mount.LocalDrive}");
+                    // 进一步验证挂载点是否真正可用（能读取内容）
+                    // 避免盘符存在但网络共享名损坏的情况
+                    if (IsMountPointFunctional(mount.LocalDrive))
+                    {
+                        mount.IsMounting = false;
+                        mount.IsMounted = true;
+                        mount.Status = $"已挂载到 {mount.LocalDrive}";
+                        mount.MountCancellationTokenSource = null;
+                        _logger.Info($"挂载成功: {name} -> {mount.LocalDrive}");
 
-                    return true;
+                        return true;
+                    }
+                    else
+                    {
+                        // 盘符存在但无法读取内容，可能是 WinFsp 网络共享名损坏
+                        // 继续等待或超时
+                        _logger.Debug($"挂载点 {mount.LocalDrive} 存在但无法读取内容，继续等待...");
+                    }
                 }
 
                 await Task.Delay(200, cancellationToken);
@@ -690,12 +713,12 @@ public class MountService
                 continue;
             }
 
+            Process? proc = null;
             try
             {
-                var proc = Process.GetProcessById(mountInfo.Pid);
+                proc = Process.GetProcessById(mountInfo.Pid);
                 if (proc.HasExited)
                 {
-                    proc.Dispose();
                     continue;
                 }
 
@@ -706,15 +729,16 @@ public class MountService
                     mountConfig.LocalDrive = mountInfo.DriveLetter;
                     mountConfig.Status = $"已挂载到 {mountInfo.DriveLetter}";
                     _logger.Info($"已恢复进程追踪: {mountConfig.Name} (PID: {mountInfo.Pid})");
-                }
-                else
-                {
-                    proc.Dispose();
+                    proc = null; // 成功接管，不需要释放
                 }
             }
             catch
             {
                 // 进程不存在或无法访问，跳过
+            }
+            finally
+            {
+                proc?.Dispose();
             }
         }
 
@@ -749,56 +773,248 @@ public class MountService
         }
     }
 
-    private async Task CreateRcloneConfigAsync(MountInfo mount, string? oldName = null)
+    /// <summary>
+    /// 检查挂载点是否真正可用（能读取目录内容）
+    /// 用于区分：挂载点存在但网络共享名损坏的情况
+    /// </summary>
+    private bool IsMountPointFunctional(string mountPoint)
     {
-        // 如果名称变更了，先删除旧的 remote 配置
-        if (!string.IsNullOrEmpty(oldName) && oldName != mount.Name)
+        if (string.IsNullOrWhiteSpace(mountPoint))
+            return false;
+
+        try
         {
-            await DeleteRcloneConfigAsync(oldName);
+            var info = new DirectoryInfo(mountPoint);
+            if (!info.Exists)
+                return false;
+
+            // 尝试获取目录内容，验证挂载点是否真正可用
+            // GetFileSystemInfos() 会实际访问文件系统
+            info.GetFileSystemInfos();
+            return true;
+        }
+        catch
+        {
+            // 目录存在但无法读取内容，可能是网络共享名损坏
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 清理挂载前的残留状态：僵尸进程占用的 WinFsp 网络共享名和残留挂载点
+    /// </summary>
+    /// <param name="mount">要挂载的配置信息</param>
+    private async Task CleanupStaleMountAsync(MountInfo mount)
+    {
+        // 1. 检查挂载点是否已被占用（可能有其他挂载残留）
+        if (!IsMountPointAccessible(mount.LocalDrive))
+            return; // 挂载点未被占用，无需清理
+
+        _logger.Info($"检测到挂载点 {mount.LocalDrive} 已被占用，尝试清理残留");
+
+        // 2. 检查是否有对应的 rclone 进程在运行
+        var activeRcloneMounts = _systemService.ScanRcloneMounts();
+
+        // 查找是否有同名的活跃 rclone 进程
+        var hasActiveProcess = activeRcloneMounts.TryGetValue(mount.Name, out var activeMountInfo);
+
+        if (hasActiveProcess)
+        {
+            // 有活跃进程，尝试验证该进程是否真的正常工作
+            try
+            {
+                var proc = Process.GetProcessById(activeMountInfo!.Pid);
+                if (!proc.HasExited)
+                {
+                    // 进程仍然存活，检查挂载点是否可正常访问
+                    if (IsMountPointAccessible(mount.LocalDrive))
+                    {
+                        // 进一步验证：尝试列出目录内容，确保挂载点真正可用
+                        // 有些情况下挂载点存在但网络共享名损坏，导致无法读取内容
+                        if (IsMountPointFunctional(mount.LocalDrive))
+                        {
+                            _logger.Info($"挂载点 {mount.LocalDrive} 已有活跃的 rclone 进程 (PID: {activeMountInfo.Pid})，接管该进程");
+
+                        // 启用事件监听并注册退出事件
+                        proc.EnableRaisingEvents = true;
+                        proc.Exited += (s, e) =>
+                        {
+                            void HandleExit()
+                            {
+                                _mountProcesses.TryRemove(mount.Name, out _);
+                                if (mount.IsMounted)
+                                {
+                                    mount.IsMounted = false;
+                                    mount.Status = "未挂载";
+                                    _logger.Warning($"挂载意外退出: {mount.Name}");
+                                    _notificationService.ShowWarning($"挂载 \"{mount.Name}\" 已意外断开");
+                                }
+                            }
+
+                            if (_syncContext != null)
+                                _syncContext.Post(_ => HandleExit(), null);
+                            else
+                                HandleExit();
+                        };
+
+                        // 接管现有进程：加入追踪字典并更新状态
+                        if (_mountProcesses.TryAdd(mount.Name, proc))
+                        {
+                            // 成功接管，更新挂载状态
+                            mount.IsMounted = true;
+                            mount.Status = $"已挂载到 {mount.LocalDrive}";
+                            _logger.Info($"已接管现有挂载进程: {mount.Name} (PID: {activeMountInfo.Pid})");
+                        }
+                        else
+                        {
+                            // 已有同名进程在追踪中，释放当前进程句柄
+                            proc.Dispose();
+                        }
+                        return;
+                        }
+                        else
+                        {
+                            // 挂载点存在但无法读取内容，可能是网络共享名损坏
+                            _logger.Warning($"挂载点 {mount.LocalDrive} 存在但无法读取内容，可能是残留损坏，将清理后重新挂载");
+                            proc.Dispose();
+                        }
+                        return;
+                    }
+                }
+                proc.Dispose();
+            }
+            catch
+            {
+                // 进程已退出，继续清理
+            }
         }
 
-        // 转义名称中的特殊字符
-        var escapedName = EscapeRcloneName(mount.Name);
-        var configArgs = $"config create {escapedName} {mount.Type} ";
-        configArgs += $"url \"{mount.Url}\" ";
-
-        if (!string.IsNullOrWhiteSpace(mount.User))
-            configArgs += $"user \"{mount.User}\" ";
-
-        if (!string.IsNullOrWhiteSpace(mount.Password))
-            configArgs += $"pass \"{mount.Password}\" ";
-
-        if (mount.Type == "webdav" && !string.IsNullOrWhiteSpace(mount.Vendor))
-            configArgs += $"vendor \"{mount.Vendor}\" ";
-
-        var process = new Process
+        // 3. 没有活跃进程但挂载点仍被占用 → 僵尸残留，尝试 rclone umount
+        _logger.Info($"清理残留挂载点: {mount.LocalDrive}（无活跃 rclone 进程）");
+        try
         {
-            StartInfo = new ProcessStartInfo
+            using var unmountProcess = new Process
             {
-                FileName = RcloneLocator.GetRclonePath(),
-                Arguments = configArgs,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = RcloneLocator.GetRclonePath(),
+                    Arguments = $"umount {mount.LocalDrive}",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            unmountProcess.Start();
+            await unmountProcess.WaitForExitAsync();
+
+            var exitCode = unmountProcess.ExitCode;
+            if (exitCode == 0 || exitCode == 2)
+            {
+                _logger.Info($"残留挂载点清理完成: {mount.LocalDrive} (退出码: {exitCode})");
             }
-        };
-
-        // 设置代理环境变量
-        SetProxyEnvironment(process.StartInfo);
-
-        _logger.Debug($"创建/更新 rclone 配置: {mount.Name}");
-        process.Start();
-        await process.WaitForExitAsync();
-
-        if (process.ExitCode != 0)
+            else
+            {
+                var error = await unmountProcess.StandardError.ReadToEndAsync();
+                _logger.Warning($"清理残留挂载点返回非零退出码: {exitCode}, 错误: {error}");
+            }
+        }
+        catch (Exception ex)
         {
-            var error = await process.StandardError.ReadToEndAsync();
-            _logger.Error($"创建 rclone 配置失败: {mount.Name}, 错误: {error}");
+            _logger.Warning($"清理残留挂载点失败: {mount.LocalDrive}, 错误: {ex.Message}");
+        }
+
+        // 4. 等待挂载点释放
+        var waitStart = DateTime.UtcNow;
+        while (DateTime.UtcNow - waitStart < TimeSpan.FromSeconds(5))
+        {
+            if (!IsMountPointAccessible(mount.LocalDrive))
+            {
+                _logger.Info($"残留挂载点 {mount.LocalDrive} 已释放");
+                return;
+            }
+            await Task.Delay(300);
+        }
+
+        _logger.Warning($"残留挂载点 {mount.LocalDrive} 在清理后仍被占用");
+    }
+
+    private async Task CreateRcloneConfigAsync(MountInfo mount, string? oldName = null)
+    {
+        // 序列化对 rclone.conf 的写入，防止并发 config create 导致文件锁冲突
+        await _configLock.WaitAsync();
+        try
+        {
+            // 如果名称变更了，先删除旧的 remote 配置
+            if (!string.IsNullOrEmpty(oldName) && oldName != mount.Name)
+            {
+                await DeleteRcloneConfigAsyncCore(oldName);
+            }
+
+            // 转义名称中的特殊字符
+            var escapedName = EscapeRcloneName(mount.Name);
+            var configArgs = $"config create {escapedName} {mount.Type} ";
+            configArgs += $"url \"{mount.Url}\" ";
+
+            if (!string.IsNullOrWhiteSpace(mount.User))
+                configArgs += $"user \"{mount.User}\" ";
+
+            if (!string.IsNullOrWhiteSpace(mount.Password))
+                configArgs += $"pass \"{mount.Password}\" ";
+
+            if (mount.Type == "webdav" && !string.IsNullOrWhiteSpace(mount.Vendor))
+                configArgs += $"vendor \"{mount.Vendor}\" ";
+
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = RcloneLocator.GetRclonePath(),
+                    Arguments = configArgs,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            // 设置代理环境变量
+            SetProxyEnvironment(process.StartInfo);
+
+            _logger.Debug($"创建/更新 rclone 配置: {mount.Name}");
+            process.Start();
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode != 0)
+            {
+                var error = await process.StandardError.ReadToEndAsync();
+                _logger.Error($"创建 rclone 配置失败: {mount.Name}, 错误: {error}");
+            }
+        }
+        finally
+        {
+            _configLock.Release();
         }
     }
 
     private async Task DeleteRcloneConfigAsync(string name)
+    {
+        await _configLock.WaitAsync();
+        try
+        {
+            await DeleteRcloneConfigAsyncCore(name);
+        }
+        finally
+        {
+            _configLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// 删除 rclone 配置的内部实现（不含锁，由调用方负责加锁）
+    /// </summary>
+    private async Task DeleteRcloneConfigAsyncCore(string name)
     {
         try
         {
